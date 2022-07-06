@@ -1,0 +1,132 @@
+import TokenType from "./tokenTypes"
+
+
+export type TokenValue = number | null | string //| boolean | Array<any> | object
+export class Token {
+    type: TokenType
+    value: TokenValue
+    constructor(type: TokenType, value: TokenValue) {
+        this.type = type
+        this.value = value
+    }
+}
+
+
+export default class Tokenizer {
+    line: number
+    col: number
+    private currChar: string | null
+    private text: string
+    private idx: number
+    constructor(text: string) {
+        this.idx = 0
+        this.line = 1
+        this.col = 1
+        this.text = text
+        this.currChar = this.text[this.idx]
+    }
+
+    getNextToken(): Token {
+        while (this.currChar !== null) {
+            if (this.currChar === ' ' || this.currChar === '\n') {
+                this.skipWhitespace()
+                continue
+            }
+
+            if (this.currChar === '(') {
+                this.advance()
+                return new Token(TokenType.L_PAREN, '(')
+            }
+            if (this.currChar === ')') {
+                this.advance()
+                return new Token(TokenType.R_PAREN, ')')
+            }
+            if (this.currChar === '+') {
+                this.advance()
+                return new Token(TokenType.PLUS, '+')
+            }
+            if (this.currChar === '-') {
+                this.advance()
+                return new Token(TokenType.MINUS, '-')
+            }
+            if (this.currChar === '/' && this.nextChar() === '/') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.FLOOR, '//')
+            }
+            if (this.currChar === '/') {
+                this.advance()
+                return new Token(TokenType.DIV, '/')
+            }
+            if (this.currChar === '%') {
+                this.advance()
+                return new Token(TokenType.MOD, '%')
+            }
+            if (this.currChar === '*' && this.nextChar() === '*') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.EXPONENT, '**')
+            }
+            if (this.currChar === '*') {
+                this.advance()
+                return new Token(TokenType.MUL, '*')
+            }
+            if (this.currCharIsDigit()) {
+                return this.numberToken()
+            }
+
+            throw new Error(`invalid character: line ${ this.line } col ${ this.col }`)
+        }
+
+        return new Token(TokenType.EOF, null)
+    }
+
+    private numberToken(): Token {
+        const digits = []
+        while (this.currCharIsDigit()) {
+            digits.push(this.currChar)
+            this.advance()
+        }
+
+        if (this.currChar === '.') {
+            digits.push(this.currChar)
+            this.advance()
+            while (this.currCharIsDigit()) {
+                digits.push(this.currChar)
+                this.advance()
+            }
+        }
+
+        const value = Number(digits.join(""))
+        return new Token(TokenType.NUMBER_CONST, value)
+    }
+
+    private currCharIsDigit(): boolean {
+        return this.currChar !== null && this.currChar >= '0' && this.currChar <= '9'
+    }
+
+    nextChar(): string | null {
+        return this.idx < this.text.length - 1 ? this.text[this.idx + 1] : null
+    }
+
+    private skipWhitespace(): void {
+        while (this.currChar === ' ' || this.currChar === '\n') {
+            this.advance()
+        }
+    }
+
+    private advance(): void {
+        if (this.text[++this.idx] === '\n') {
+            this.line++
+            this.col = 1
+            return
+        }
+        if (this.idx >= this.text.length) {
+            this.currChar = null
+            return
+        }
+
+        this.currChar = this.text[this.idx]
+        this.col++
+    }
+}
