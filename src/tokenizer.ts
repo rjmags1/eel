@@ -1,4 +1,4 @@
-import TokenType from "./tokenTypes"
+import TokenType, { KEYWORDS } from "./tokenTypes"
 
 
 export type TokenValue = number | null | string //| boolean | Array<any> | object
@@ -71,14 +71,63 @@ export default class Tokenizer {
                 this.advance()
                 return new Token(TokenType.MUL, '*')
             }
+            if (this.currChar === ':') {
+                this.advance()
+                return new Token(TokenType.COLON, ':')
+            }
+            if (this.currChar === ';') {
+                this.advance()
+                return new Token(TokenType.SEMI, ';')
+            }
+            if (this.currChar === '=') {
+                this.advance()
+                return new Token(TokenType.ASSIGN, '=')
+            }
             if (this.currCharIsDigit()) {
                 return this.numberToken()
+            }
+            if (this.currCharIsAlpha() && 
+                this.text.slice(this.idx, this.idx + 3) === KEYWORDS.LET) {
+                return this.keywordToken(TokenType.LET)
+            }
+            if (this.currCharIsAlpha() &&
+                this.text.slice(this.idx, this.idx + 6) === KEYWORDS.NUMBER) {
+                return this.keywordToken(TokenType.NUMBER)
+            }
+            if (this.currCharIsAlpha()) {
+                return this.idToken()
             }
 
             throw new Error(`invalid character: line ${ this.line } col ${ this.col }`)
         }
 
         return new Token(TokenType.EOF, null)
+    }
+
+    private keywordToken(keywordTokenType: TokenType): Token {
+        const keyword = this.word()
+        return new Token(keywordTokenType, keyword)
+    }
+
+    private idToken(): Token {
+        const alias = this.word()
+        return new Token(TokenType.ID, alias)
+    }
+
+    private word(): string {
+        const chars = []
+        while (this.currCharIsAlpha() || this.currCharIsDigit()) {
+            chars.push(this.currChar)
+            this.advance()
+        }
+
+        return chars.join("")
+    }
+
+    private currCharIsAlpha(): boolean {
+        return this.currChar !== null && (
+            (this.currChar >= 'a' && this.currChar <= 'z') ||
+            (this.currChar >= 'A' && this.currChar <= 'Z'))
     }
 
     private numberToken(): Token {
@@ -116,16 +165,15 @@ export default class Tokenizer {
     }
 
     private advance(): void {
-        if (this.text[++this.idx] === '\n') {
-            this.line++
-            this.col = 1
-            return
-        }
-        if (this.idx >= this.text.length) {
+        if (++this.idx >= this.text.length) {
             this.currChar = null
             return
         }
 
+        if (this.text[this.idx] === '\n') {
+            this.line++
+            this.col = 0
+        }
         this.currChar = this.text[this.idx]
         this.col++
     }
