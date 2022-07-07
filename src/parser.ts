@@ -11,8 +11,54 @@ export default class Parser {
         this.currToken = this.nextToken()
     }
 
-    buildAST(): ast.AST {
-        return this.numExpr()
+    buildAST(): ast.Block {
+        const root = new ast.Block(true) // root=true
+        while (this.currToken.type != TokenType.EOF) {
+            root.children.push(this.varDeclareAssign())
+            this.eat(TokenType.SEMI)
+        }
+
+        return root
+    }
+
+    private varDeclareAssign(): ast.AST {
+        const left = this.currToken.type === TokenType.LET ? 
+            this.varDecl() : this.variable()
+        if (this.currToken.type !== TokenType.ASSIGN) {
+            const varDecl = left
+            return varDecl
+        }
+        const assignToken = this.currToken
+        this.eat(TokenType.ASSIGN)
+        const right = this.numExpr()
+
+        return new ast.Assign(left, assignToken, right)
+    }
+
+    private variable(): ast.AST {
+        const idToken = this.currToken
+        this.eat(TokenType.ID)
+        return new ast.Var(idToken)
+    }
+
+    private varDecl(): ast.VarDecl {
+        const declaratorToken = this.currToken
+        this.eat(TokenType.LET)
+        const alias = this.currToken.value as string
+        this.eat(TokenType.ID)
+        this.eat(TokenType.COLON)
+        const typeToken = this.typeSpecifier()
+        return new ast.VarDecl(declaratorToken, alias, typeToken.type)
+    }
+
+    private typeSpecifier(): Token {
+        if (this.currToken.type === TokenType.NUMBER) {
+            const numberTypeToken = this.currToken
+            this.eat(TokenType.NUMBER)
+            return numberTypeToken
+        }
+
+        throw new Error('invalid syntax - unsupported type')
     }
 
     private numExpr(): ast.AST {
@@ -72,12 +118,12 @@ export default class Parser {
     }
 
     private factor(): ast.AST {
-        if (this.currToken.type === TokenType.PLUS) {
+        if (this.currToken.type === TokenType.PLUS) { // unary
             const op = this.currToken
             this.eat(TokenType.PLUS)
             return new ast.UnaryOp(op, this.factor())
         }
-        else if (this.currToken.type === TokenType.MINUS) {
+        else if (this.currToken.type === TokenType.MINUS) { // unary
             const op = this.currToken
             this.eat(TokenType.MINUS)
             return new ast.UnaryOp(op, this.factor())
@@ -87,6 +133,9 @@ export default class Parser {
             const expr = this.numExpr()
             this.eat(TokenType.R_PAREN)
             return expr
+        }
+        else if (this.currToken.type === TokenType.ID) {
+            return this.variable()
         }
         else {
             const num = new ast.Number(this.currToken)
@@ -101,7 +150,7 @@ export default class Parser {
             return
         }
 
-        throw new Error('invalid syntax')
+        throw new Error(`invalid syntax: line ${ this.tokenizer.line } col ${ this.tokenizer.col }`)
     }
 
     private nextToken(): Token {

@@ -1,4 +1,5 @@
 import { Token } from './tokenizer'
+import TokenType from './tokenTypes'
 
 
 export class AST { 
@@ -35,5 +36,41 @@ export class BinOp extends AST {
         this.left = left
         this.op = op
         this.right = right
+    }
+}
+
+export class Var extends AST {
+    constructor(token: Token) {
+        super(token)
+    }
+}
+
+export class VarDecl extends AST {
+    alias: string
+    type: TokenType
+    constructor(declarator: Token, alias: string, type: TokenType) {
+        super(declarator)
+        this.alias = alias
+        this.type = type
+    }
+}
+
+export class Assign extends AST {
+    left: AST
+    right: AST
+    constructor(left: AST, assign: Token, right: AST) {
+        super(assign)
+        this.left = left
+        this.right = right
+    }
+}
+
+export class Block extends AST {
+    children: AST[]
+    root: boolean
+    constructor(root=false) {
+        super(new Token(TokenType.BLOCK, null))
+        this.root = root
+        this.children = []
     }
 }
