@@ -1,7 +1,7 @@
 import TokenType, { KEYWORDS } from "./tokenTypes"
 
 
-export type TokenValue = number | null | string //| boolean | Array<any> | object
+export type TokenValue = number | null | string | boolean //| Array<any> | object
 export class Token {
     type: TokenType
     value: TokenValue
@@ -86,16 +86,9 @@ export default class Tokenizer {
             if (this.currCharIsDigit()) {
                 return this.numberToken()
             }
-            if (this.currCharIsAlpha() && 
-                this.text.slice(this.idx, this.idx + 3) === KEYWORDS.LET) {
-                return this.keywordToken(TokenType.LET)
-            }
-            if (this.currCharIsAlpha() &&
-                this.text.slice(this.idx, this.idx + 6) === KEYWORDS.NUMBER) {
-                return this.keywordToken(TokenType.NUMBER)
-            }
             if (this.currCharIsAlpha()) {
-                return this.idToken()
+                const keywordToken = this.foundKeyword()
+                return keywordToken === null ? this.idToken() : keywordToken
             }
 
             throw new Error(`invalid character: line ${ this.line } col ${ this.col }`)
@@ -104,9 +97,33 @@ export default class Tokenizer {
         return new Token(TokenType.EOF, null)
     }
 
+    private foundKeyword(): Token | null {
+        type TokenTypeString = keyof typeof TokenType
+
+        for (const [type, keyword] of Object.entries(KEYWORDS)) {
+            const stop = this.idx + keyword.length
+            const keywordLenSliceFromText = this.text.slice(this.idx, stop)
+            const delimited = (
+                !this.isAlpha(this.text[stop]) && !this.isDigit(this.text[stop]))
+            if (keyword === keywordLenSliceFromText && delimited) {
+                return this.keywordToken(TokenType[type as TokenTypeString])
+            }
+        }
+
+        return null
+    }
+
     private keywordToken(keywordTokenType: TokenType): Token {
         const keyword = this.word()
-        return new Token(keywordTokenType, keyword)
+        let tokenValue: string | boolean = keyword
+        if (keyword === 'true') {
+            tokenValue = true
+        }
+        else if (keyword === 'false') {
+            tokenValue = false
+        }
+
+        return new Token(keywordTokenType, tokenValue)
     }
 
     private idToken(): Token {
@@ -125,9 +142,15 @@ export default class Tokenizer {
     }
 
     private currCharIsAlpha(): boolean {
-        return this.currChar !== null && (
-            (this.currChar >= 'a' && this.currChar <= 'z') ||
-            (this.currChar >= 'A' && this.currChar <= 'Z'))
+        return this.currChar !== null && this.isAlpha(this.currChar)
+    }
+
+    private isAlpha(char: string): boolean {
+        return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
+    }
+
+    private isDigit(char: string): boolean {
+        return char >= '0' && char <= '9'
     }
 
     private numberToken(): Token {
@@ -151,10 +174,10 @@ export default class Tokenizer {
     }
 
     private currCharIsDigit(): boolean {
-        return this.currChar !== null && this.currChar >= '0' && this.currChar <= '9'
+        return this.currChar !== null && this.isDigit(this.currChar)
     }
 
-    nextChar(): string | null {
+    private nextChar(): string | null {
         return this.idx < this.text.length - 1 ? this.text[this.idx + 1] : null
     }
 

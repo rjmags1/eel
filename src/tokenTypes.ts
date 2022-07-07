@@ -33,7 +33,7 @@ enum TokenType {
     // keywords
     NUMBER = 'NUMBER',
     //STRING = 'STRING',
-    //BOOLEAN = 'BOOLEAN',
+    BOOLEAN = 'BOOLEAN',
     //ARRAY = 'ARRAY',
     //NULL = 'NULL',
     //VOID = 'VOID',
@@ -44,14 +44,13 @@ enum TokenType {
     LET = 'LET',
     //RETURN = 'RETURN',
     //FUNCTION = 'FUNCTION',
-    //TRUE = 'TRUE',
-    //FALSE = 'FALSE',
+    TRUE = 'TRUE',
+    FALSE = 'FALSE',
     //STRUCT = 'STRUCT',
 
     // misc
     NUMBER_CONST = 'NUMBER_CONST',
     // STRING_CONST = 'string_const',
-    // BOOL_CONST = 'bool_const',
     ID = 'ID',
     EOF = 'EOF',
     BLOCK = 'BLOCK'
@@ -62,7 +61,7 @@ export default TokenType
 export const KEYWORDS = {
     NUMBER: 'number', 
     //STRING: 'string', 
-    //BOOLEAN: 'bool', 
+    BOOLEAN: 'bool', 
     //ARRAY: 'array',
     //NULL: 'null', 
     //VOID: 'void', 
@@ -70,8 +69,8 @@ export const KEYWORDS = {
     //ELSE: 'else', 
     //FOR: 'for', 
     //WHILE: 'while',
-    //TRUE: 'true', 
-    //FALSE: 'false',
+    TRUE: 'true', 
+    FALSE: 'false',
     LET: 'let', 
     //FUNCTION: 'function', 
     //STRUCT: 'struct', 
