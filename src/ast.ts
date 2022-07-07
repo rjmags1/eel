@@ -17,6 +17,14 @@ export class Number extends AST {
     }
 }
 
+export class Boolean extends AST {
+    value: boolean
+    constructor(token: Token) {
+        super(token)
+        this.value = this.token.value as boolean
+    }
+}
+
 export class UnaryOp extends AST {
     op: Token
     operand: AST

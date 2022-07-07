@@ -4,7 +4,7 @@ import TokenType from "./tokenTypes"
 
 
 interface VarInfo {
-    value: number | undefined
+    value: number | boolean | undefined
     type: TokenType
 }
 
@@ -16,12 +16,12 @@ export default class Interpreter {
         this.globalMemory = new Map()
     }
 
-    interpret(): number | void {
+    interpret(): number | boolean | void {
         const ast: ast.AST = this.parser.buildAST()
         return this.visit(ast)
     }
 
-    private visit(node: ast.AST): number | void {
+    private visit(node: ast.AST): number | boolean | void {
         if (node instanceof ast.UnaryOp) {
             return this.visitUnaryOp(node)
         }
@@ -42,6 +42,9 @@ export default class Interpreter {
         }
         else if (node instanceof ast.Block) {
             return this.visitBlock(node)
+        }
+        else if (node instanceof ast.Boolean) {
+            return this.visitBoolean(node)
         }
 
         throw new Error('runtime error')
@@ -66,14 +69,15 @@ export default class Interpreter {
 
         const declaredType = (this.globalMemory.get(alias) as VarInfo).type
         const assignedVal = this.visit(right)
-        if (declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') {
+        if ((declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') ||
+            (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean')) {
             throw new Error(
-                `type error: var ${ alias } of type number cannot 
+                `type error: var ${ alias } of type ${ declaredType.toLowerCase() } cannot 
                 be assigned value of type ${ typeof assignedVal }`)
         }
 
         this.globalMemory.set(alias, { 
-            value: assignedVal as number,
+            value: assignedVal as number | boolean,
             type: declaredType 
         })
 
@@ -89,11 +93,11 @@ export default class Interpreter {
         this.globalMemory.set(alias, { value: undefined, type: type })
     }
 
-    private visitVar(node: ast.Var): number {
+    private visitVar(node: ast.Var): number | boolean {
         const alias = node.token.value as string
         if (this.varIsDeclared(alias) && this.varIsDefined(alias)) {
             const varInfo = this.globalMemory.get(alias) as VarInfo
-            return varInfo.value as number
+            return varInfo.value as number | boolean
         }
 
         throw new Error(`reference error: ${ alias } not defined`)
@@ -110,6 +114,10 @@ export default class Interpreter {
     }
 
     private visitNumber(node: ast.Number): number {
+        return node.value
+    }
+    
+    private visitBoolean(node: ast.Boolean): boolean {
         return node.value
     }
 

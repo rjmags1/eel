@@ -6,9 +6,11 @@ import * as ast from "./ast"
 export default class Parser {
     tokenizer: Tokenizer
     currToken: Token
+    varTypeMap: Map<string, TokenType>
     constructor(tokenizer: Tokenizer) {
         this.tokenizer = tokenizer
         this.currToken = this.nextToken()
+        this.varTypeMap = new Map()
     }
 
     buildAST(): ast.Block {
@@ -30,7 +32,17 @@ export default class Parser {
         }
         const assignToken = this.currToken
         this.eat(TokenType.ASSIGN)
-        const right = this.numExpr()
+
+        const alias = (left instanceof ast.VarDecl ?
+            left.alias : left.token.value) as string
+        const varType = this.varTypeMap.get(alias)
+        let right
+        if (varType === TokenType.NUMBER) {
+            right = this.numExpr()
+        }
+        else {
+            right = this.bool()
+        }
 
         return new ast.Assign(left, assignToken, right)
     }
@@ -48,6 +60,7 @@ export default class Parser {
         this.eat(TokenType.ID)
         this.eat(TokenType.COLON)
         const typeToken = this.typeSpecifier()
+        this.varTypeMap.set(alias, typeToken.type)
         return new ast.VarDecl(declaratorToken, alias, typeToken.type)
     }
 
@@ -56,6 +69,11 @@ export default class Parser {
             const numberTypeToken = this.currToken
             this.eat(TokenType.NUMBER)
             return numberTypeToken
+        }
+        if (this.currToken.type === TokenType.BOOLEAN) {
+            const boolTypeToken = this.currToken
+            this.eat(TokenType.BOOLEAN)
+            return boolTypeToken
         }
 
         throw new Error('invalid syntax - unsupported type')
@@ -144,7 +162,20 @@ export default class Parser {
         }
     }
 
+    private bool(): ast.AST {
+        const bool = new ast.Boolean(this.currToken)
+        if (this.currToken.type === TokenType.TRUE) {
+            this.eat(TokenType.TRUE)
+        }
+        else { // FALSE
+            this.eat(TokenType.FALSE)
+        }
+
+        return bool
+    }
+
     private eat(tokenType: TokenType): void {
+        //console.log(tokenType, this.currToken)
         if (this.currToken.type === tokenType) {
             this.currToken = this.nextToken()
             return
