@@ -11,7 +11,7 @@ enum TokenType {
     //LTE = 'LTE'
     //GTE = 'GTE',
     //GT = 'GT,
-    //ASSIGN = 'ASSIGN',
+    ASSIGN = 'ASSIGN',
     //EQUAL = 'EQUAL',
     //NOT_EQUAL = 'NOT_EQUAL',
     //NOT = 'NOT',
@@ -25,9 +25,9 @@ enum TokenType {
     //R_CURLY = 'R_CURLY',
     //L_BRACK = 'L_BRACK',
     //R_BRACK = 'R_BRACK',
-    //SEMI = 'SEMI',
+    SEMI = 'SEMI',
     //DOT = 'DOT',
-    //COLON = 'COLON',
+    COLON = 'COLON',
     //COMMA = 'COMMA',
 
     // keywords
@@ -41,7 +41,7 @@ enum TokenType {
     //ELSE = 'ELSE',
     //FOR = 'FOR',
     //WHILE = 'WHILE',
-    //LET = 'LET',
+    LET = 'LET',
     //RETURN = 'RETURN',
     //FUNCTION = 'FUNCTION',
     //TRUE = 'TRUE',
@@ -52,8 +52,28 @@ enum TokenType {
     NUMBER_CONST = 'NUMBER_CONST',
     // STRING_CONST = 'string_const',
     // BOOL_CONST = 'bool_const',
-    // ID = 'id',
+    ID = 'ID',
     EOF = 'EOF',
+    BLOCK = 'BLOCK'
 }
-
 export default TokenType
+
+
+export const KEYWORDS = {
+    NUMBER: 'number', 
+    //STRING: 'string', 
+    //BOOLEAN: 'bool', 
+    //ARRAY: 'array',
+    //NULL: 'null', 
+    //VOID: 'void', 
+    //IF: 'if', 
+    //ELSE: 'else', 
+    //FOR: 'for', 
+    //WHILE: 'while',
+    //TRUE: 'true', 
+    //FALSE: 'false',
+    LET: 'let', 
+    //FUNCTION: 'function', 
+    //STRUCT: 'struct', 
+    //RETURN: 'return'
+}
