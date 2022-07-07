@@ -16,9 +16,7 @@ const main = () => {
     const tokenizer = new Tokenizer(text)
     const parser = new Parser(tokenizer)
     const interpreter = new Interpreter(parser)
-
-    const result = interpreter.interpret()
-    console.log(result)
+    interpreter.interpret()
 }
 
 main()
