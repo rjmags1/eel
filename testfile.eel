@@ -13,6 +13,7 @@ let bool4: bool = num3 < 7 || (false);
 let bool5: bool = num2 == 77 // 1;
 let bool6: bool = 101 != num2 && (((100 - 82) ** 0) == 1);
 let bool7: bool = (((100 - 82) ** 0) == 1);
+bool7 = !bool7;
 
 bool5 = null;
 let num5: number = null;

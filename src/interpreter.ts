@@ -151,7 +151,8 @@ export default class Interpreter {
                 throw new Error(
                     "cannot perform logical negation on non-boolean value")
             }
-
+            
+            return !value
         }
         
         return op === TokenType.PLUS ? +value : -value
