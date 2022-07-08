@@ -1,7 +1,6 @@
 import Parser from "./parser"
 import * as ast from "./ast"
 import TokenType from "./tokenTypes"
-import { Token } from "./tokenizer"
 
 
 interface VarInfo {
@@ -17,12 +16,12 @@ export default class Interpreter {
         this.globalMemory = new Map()
     }
 
-    interpret(): number | boolean | void {
+    interpret(): void {
         const ast: ast.AST = this.parser.buildAST()
-        return this.visit(ast)
+        this.visit(ast)
     }
 
-    private visit(node: ast.AST): number | boolean | void {
+    private visit(node: ast.AST): number | boolean | null | void {
         if (node instanceof ast.UnaryOp) {
             return this.visitUnaryOp(node)
         }
@@ -47,6 +46,9 @@ export default class Interpreter {
         else if (node instanceof ast.Boolean) {
             return this.visitBoolean(node)
         }
+        else if (node instanceof ast.Null) {
+            return this.visitNull(node)
+        }
 
         throw new Error('runtime error')
     }
@@ -70,8 +72,9 @@ export default class Interpreter {
 
         const declaredType = (this.globalMemory.get(alias) as VarInfo).type
         const assignedVal = this.visit(right)
-        if ((declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') ||
-            (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean')) {
+        if (assignedVal !== null && (
+            (declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') ||
+            (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean'))) {
             throw new Error(
                 `type error: var ${ alias } of type ${ declaredType.toLowerCase() } cannot 
                 be assigned value of type ${ typeof assignedVal }`)
@@ -112,6 +115,10 @@ export default class Interpreter {
         return this.globalMemory.get(alias)?.value !== undefined
     }
 
+    private visitNull(node: ast.Null): null {
+        return node.value
+    }
+
     private visitNumber(node: ast.Number): number {
         return node.value
     }
@@ -128,21 +135,23 @@ export default class Interpreter {
         }
 
         const value = this.visit(node.operand)
-        if (op === TokenType.NOT) {
-            if (typeof value !== 'boolean') {
-                throw new Error(
-                    "cannot perform logical negation on non-boolean value")
-            }
-
-            return !value
+        if (value === null) {
+            throw new Error(`cannot perform unary ${ op } on a null value`)
         }
-        
         if (typeof value !== 'number' && op === TokenType.PLUS) {
             throw new Error("cannot perform unary plus on non-number value")
         }
         else if (typeof value !== 'number' && op === TokenType.MINUS) {
             throw new Error(
                 "cannot perform numerical negation on non-number value")
+        }
+
+        if (op === TokenType.NOT) {
+            if (typeof value !== 'boolean') {
+                throw new Error(
+                    "cannot perform logical negation on non-boolean value")
+            }
+
         }
         
         return op === TokenType.PLUS ? +value : -value
@@ -152,6 +161,12 @@ export default class Interpreter {
         const op = node.op.type
         const left = this.visit(node.left)
         const right = this.visit(node.right)
+
+        if ((left === null || right === null) && 
+            [TokenType.EQUAL, TokenType.NOT_EQUAL].includes(op)) {
+            throw new Error(
+                `cannot perform op ${ node.op.value } on null values`)
+        }
 
         if (typeof left === 'number' && typeof right === 'number') {
             if (op === TokenType.EXPONENT) {

@@ -157,12 +157,15 @@ export default class Tokenizer {
 
     private keywordToken(keywordTokenType: TokenType): Token {
         const keyword = this.word()
-        let tokenValue: string | boolean = keyword
+        let tokenValue: string | boolean | null = keyword
         if (keyword === 'true') {
             tokenValue = true
         }
         else if (keyword === 'false') {
             tokenValue = false
+        }
+        else if (keyword === 'null') {
+            tokenValue = null
         }
 
         return new Token(keywordTokenType, tokenValue)

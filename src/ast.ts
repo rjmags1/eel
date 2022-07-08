@@ -9,6 +9,14 @@ export class AST {
     }
 }
 
+export class Null extends AST {
+    value: null
+    constructor(token: Token) {
+        super(token)
+        this.value = this.token.value as null
+    }
+}
+
 export class Number extends AST {
     value: number
     constructor(token: Token) {

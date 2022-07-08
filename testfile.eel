@@ -1,15 +1,18 @@
-let var1: number = +1 - -2 + -+-+3;
-let var2: number = (77);
-let var3: number;
-var3 = 8;
-let var4: number;
-var4 = (var1 + var2) ** 2 / ((4 + 3) - 5 * 1.1) % 100;
+let num1: number = +1 - -2 + -+-+3;
+let num2: number = (77);
+let num3: number;
+num3 = 8;
+let num4: number;
+num4 = (num1 + num2) ** 2 / ((4 + 3) - 5 * 1.1) % 100;
 
 let bool1: bool = false;
 let bool2: bool = true;
 let bool3: bool;
 bool3 = (false);
-let bool4: bool = var3 < 7 || (false);
-let bool5: bool = var2 == 77 // 1;
-let bool6: bool = 101 != var2 && (((100 - 82) ** 0) == 1);
+let bool4: bool = num3 < 7 || (false);
+let bool5: bool = num2 == 77 // 1;
+let bool6: bool = 101 != num2 && (((100 - 82) ** 0) == 1);
 let bool7: bool = (((100 - 82) ** 0) == 1);
+
+bool5 = null;
+let num5: number = null;

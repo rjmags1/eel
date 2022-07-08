@@ -220,6 +220,10 @@ export default class Parser {
         else if (this.currToken.type === TokenType.ID) {
             return this.variable()
         }
+        else if (this.currToken.type === TokenType.NULL) {
+            this.eat(TokenType.NULL)
+            return new ast.Null(token)
+        }
 
         throw new Error("unexpected primary token")
     }
