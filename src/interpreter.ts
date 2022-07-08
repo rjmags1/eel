@@ -1,6 +1,7 @@
 import Parser from "./parser"
 import * as ast from "./ast"
 import TokenType from "./tokenTypes"
+import { Token } from "./tokenizer"
 
 
 interface VarInfo {
@@ -108,9 +109,7 @@ export default class Interpreter {
     }
 
     private varIsDefined(alias: string): boolean {
-        return (
-            this.globalMemory.has(alias) && 
-            this.globalMemory.get(alias)?.value !== undefined)
+        return this.globalMemory.get(alias)?.value !== undefined
     }
 
     private visitNumber(node: ast.Number): number {
@@ -121,40 +120,93 @@ export default class Interpreter {
         return node.value
     }
 
-    private visitUnaryOp(node: ast.UnaryOp): number {
+    private visitUnaryOp(node: ast.UnaryOp): number | boolean {
         const op = node.op.type
+        if (![TokenType.NOT, TokenType.PLUS, TokenType.MINUS].includes(op)) {
+            throw new Error(
+                `invalid unary operator ${ node.op }`)
+        }
+
         const value = this.visit(node.operand)
+        if (op === TokenType.NOT) {
+            if (typeof value !== 'boolean') {
+                throw new Error(
+                    "cannot perform logical negation on non-boolean value")
+            }
+
+            return !value
+        }
+        
+        if (typeof value !== 'number' && op === TokenType.PLUS) {
+            throw new Error("cannot perform unary plus on non-number value")
+        }
+        else if (typeof value !== 'number' && op === TokenType.MINUS) {
+            throw new Error(
+                "cannot perform numerical negation on non-number value")
+        }
         
         return op === TokenType.PLUS ? +value : -value
     }
 
-    private visitBinOp(node: ast.BinOp): number {
+    private visitBinOp(node: ast.BinOp): number | boolean {
         const op = node.op.type
-        const left = this.visit(node.left) as number
-        const right = this.visit(node.right) as number
+        const left = this.visit(node.left)
+        const right = this.visit(node.right)
 
-        if (op === TokenType.EXPONENT) {
-            return left ** right
+        if (typeof left === 'number' && typeof right === 'number') {
+            if (op === TokenType.EXPONENT) {
+                return left ** right
+            }
+            if (op === TokenType.MUL) {
+                return left * right
+            }
+            if (op === TokenType.DIV) {
+                return left / right
+            }
+            if (op === TokenType.FLOOR) {
+                return Math.floor(left / right)
+            }
+            if (op === TokenType.MOD) {
+                return left % right
+            }
+            if (op === TokenType.PLUS) {
+                return left + right
+            }
+            if (op === TokenType.MINUS) {
+                return left - right
+            }
+            if (op === TokenType.LT) {
+                return left < right
+            }
+            if (op === TokenType.LTE) {
+                return left <= right
+            }
+            if (op === TokenType.GT) {
+                return left > right
+            }
+            if (op === TokenType.GTE) {
+                return left >= right
+            }
         }
-        if (op === TokenType.MUL) {
-            return left * right
+        
+        else if (typeof left === 'boolean' && typeof right === 'boolean') {
+            if (op === TokenType.LOGICAL_AND) {
+                return left && right
+            }
+            if (op === TokenType.LOGICAL_OR) {
+                return left || right
+            }
         }
-        if (op === TokenType.DIV) {
-            return left / right
+        
+        if (op === TokenType.NOT_EQUAL) {
+            return left !== right
         }
-        if (op === TokenType.FLOOR) {
-            return Math.floor(left / right)
-        }
-        if (op === TokenType.MOD) {
-            return left % right
-        }
-        if (op === TokenType.PLUS) {
-            return left + right
-        }
-        if (op === TokenType.MINUS) {
-            return left - right
+        if (op === TokenType.EQUAL) {
+            return left === right
         }
 
-        throw new Error()
+        throw new Error(
+            `cannot perform ${ op.toLowerCase() } on operands of type 
+            ${ typeof left } and ${ typeof right }`)
     }
 }
