@@ -56,10 +56,10 @@ export class Var extends AST {
 export class VarDecl extends AST {
     alias: string
     type: TokenType
-    constructor(declarator: Token, alias: string, type: TokenType) {
-        super(declarator)
+    constructor(declaratorToken: Token, alias: string, typeToken: Token) {
+        super(declaratorToken)
         this.alias = alias
-        this.type = type
+        this.type = typeToken.type
     }
 }
 
