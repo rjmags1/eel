@@ -6,11 +6,9 @@ import * as ast from "./ast"
 export default class Parser {
     tokenizer: Tokenizer
     currToken: Token
-    varTypeMap: Map<string, TokenType>
     constructor(tokenizer: Tokenizer) {
         this.tokenizer = tokenizer
         this.currToken = this.nextToken()
-        this.varTypeMap = new Map()
     }
 
     buildAST(): ast.Block {
@@ -30,27 +28,11 @@ export default class Parser {
             const varDecl = left
             return varDecl
         }
+
         const assignToken = this.currToken
         this.eat(TokenType.ASSIGN)
 
-        const alias = (left instanceof ast.VarDecl ?
-            left.alias : left.token.value) as string
-        const varType = this.varTypeMap.get(alias)
-        let right
-        if (varType === TokenType.NUMBER) {
-            right = this.numExpr()
-        }
-        else {
-            right = this.bool()
-        }
-
-        return new ast.Assign(left, assignToken, right)
-    }
-
-    private variable(): ast.AST {
-        const idToken = this.currToken
-        this.eat(TokenType.ID)
-        return new ast.Var(idToken)
+        return new ast.Assign(left, assignToken, this.expr())
     }
 
     private varDecl(): ast.VarDecl {
@@ -59,9 +41,8 @@ export default class Parser {
         const alias = this.currToken.value as string
         this.eat(TokenType.ID)
         this.eat(TokenType.COLON)
-        const typeToken = this.typeSpecifier()
-        this.varTypeMap.set(alias, typeToken.type)
-        return new ast.VarDecl(declaratorToken, alias, typeToken.type)
+
+        return new ast.VarDecl(declaratorToken, alias, this.typeSpecifier())
     }
 
     private typeSpecifier(): Token {
@@ -76,112 +57,189 @@ export default class Parser {
             return boolTypeToken
         }
 
-        throw new Error('invalid syntax - unsupported type')
+        throw new Error('unexpected token - expected a type specifier')
     }
 
-    private numExpr(): ast.AST {
-        let term2 = this.numTerm2()
+    private expr(): ast.AST {
+        let expr = this.equality()
+        while ([
+            TokenType.LOGICAL_AND, TokenType.LOGICAL_OR
+        ].includes(this.currToken.type)) {
+            const opToken = this.currToken
+            if (opToken.type === TokenType.LOGICAL_AND) {
+                this.eat(TokenType.LOGICAL_AND)
+            }
+            else {
+                this.eat(TokenType.LOGICAL_OR)
+            }
+
+            expr = new ast.BinOp(expr, opToken, this.equality())
+        }
+
+        return expr
+    }
+
+    private equality(): ast.AST {
+        let eq = this.compare()
+        while ([
+            TokenType.NOT_EQUAL, TokenType.EQUAL
+        ].includes(this.currToken.type)) {
+            const opToken = this.currToken
+            if (opToken.type === TokenType.NOT_EQUAL) {
+                this.eat(TokenType.NOT_EQUAL)
+            }
+            else {
+                this.eat(TokenType.EQUAL)
+            }
+
+            eq = new ast.BinOp(eq, opToken, this.compare())
+        }
+
+        return eq
+    }
+
+    private compare(): ast.AST {
+        let comp = this.term()
+        while ([
+            TokenType.GT, TokenType.LT, TokenType.GTE, TokenType.LTE
+        ].includes(this.currToken.type)) {
+            const opToken = this.currToken
+            if (opToken.type === TokenType.GT) {
+                this.eat(TokenType.GT)
+            }
+            else if (opToken.type === TokenType.GTE) {
+                this.eat(TokenType.GTE)
+            }
+            else if (opToken.type === TokenType.LT) {
+                this.eat(TokenType.LT)
+            }
+            else {
+                this.eat(TokenType.LTE)
+            }
+
+            comp = new ast.BinOp(comp, opToken, this.term())
+        }
+
+        return comp
+    }
+
+    private term(): ast.AST {
+        let term = this.factor()
         while ([TokenType.PLUS, TokenType.MINUS].includes(this.currToken.type)) {
             const opToken = this.currToken
-            if (this.currToken.type === TokenType.PLUS) {
+            if (opToken.type === TokenType.PLUS) {
                 this.eat(TokenType.PLUS)
-                term2 = new ast.BinOp(term2, opToken, this.numTerm2())
             }
-            else { // MINUS
+            else {
                 this.eat(TokenType.MINUS)
-                term2 = new ast.BinOp(term2, opToken, this.numTerm2())
             }
+
+            term = new ast.BinOp(term, opToken, this.factor())
         }
 
-        return term2
+        return term
     }
 
-    private numTerm2(): ast.AST {
-        let term1 = this.numTerm1()
+    private factor(): ast.AST {
+        let factor = this.exponent()
         while ([
-            TokenType.MUL, TokenType.DIV, TokenType.FLOOR, TokenType.MOD
+            TokenType.MUL, TokenType.DIV, TokenType.MOD, TokenType.FLOOR
         ].includes(this.currToken.type)) {
-
             const opToken = this.currToken
-            if (this.currToken.type === TokenType.MUL) {
+            if (opToken.type === TokenType.MUL) {
                 this.eat(TokenType.MUL)
-                term1 = new ast.BinOp(term1, opToken, this.numTerm1())
             }
-            else if (this.currToken.type === TokenType.DIV) {
+            else if (opToken.type === TokenType.DIV) {
                 this.eat(TokenType.DIV)
-                term1 = new ast.BinOp(term1, opToken, this.numTerm1())
             }
-            else if (this.currToken.type === TokenType.FLOOR) {
-                this.eat(TokenType.FLOOR)
-                term1 = new ast.BinOp(term1, opToken, this.numTerm1())
-            }
-            else { // MOD
+            else if (opToken.type === TokenType.MOD) {
                 this.eat(TokenType.MOD)
-                term1 = new ast.BinOp(term1, opToken, this.numTerm1())
             }
-        }
+            else {
+                this.eat(TokenType.FLOOR)
+            }
 
-        return term1
-    }
-
-    private numTerm1(): ast.AST {
-        let factor = this.factor()
-        while (this.currToken.type === TokenType.EXPONENT) {
-            const exponentToken = this.currToken
-            this.eat(TokenType.EXPONENT)
-            factor = new ast.BinOp(factor, exponentToken, this.factor())
+            factor = new ast.BinOp(factor, opToken, this.exponent())
         }
 
         return factor
     }
 
-    private factor(): ast.AST {
-        if (this.currToken.type === TokenType.PLUS) { // unary
-            const op = this.currToken
-            this.eat(TokenType.PLUS)
-            return new ast.UnaryOp(op, this.factor())
+    private exponent(): ast.AST {
+        let exponent = this.unary()
+        while (this.currToken.type === TokenType.EXPONENT) {
+            const opToken = this.currToken
+            this.eat(TokenType.EXPONENT)
+            exponent = new ast.BinOp(exponent, opToken, this.unary())
         }
-        else if (this.currToken.type === TokenType.MINUS) { // unary
-            const op = this.currToken
-            this.eat(TokenType.MINUS)
-            return new ast.UnaryOp(op, this.factor())
+
+        return exponent
+    }
+
+    private unary(): ast.AST {
+        if ([
+            TokenType.PLUS, TokenType.MINUS, TokenType.NOT
+        ].includes(this.currToken.type)) {
+            const opToken = this.currToken
+            if (opToken.type === TokenType.PLUS) {
+                this.eat(TokenType.PLUS)
+            }
+            else if (opToken.type === TokenType.MINUS) {
+                this.eat(TokenType.MINUS)
+            }
+            else {
+                this.eat(TokenType.NOT)
+            }
+
+            return new ast.UnaryOp(opToken, this.unary())
+        }
+
+        return this.primary()
+    }
+
+    private primary(): ast.AST {
+        const token = this.currToken
+        if (this.currToken.type === TokenType.NUMBER_CONST) {
+            this.eat(TokenType.NUMBER_CONST)
+            return new ast.Number(token)
+        }
+        else if (this.currToken.type === TokenType.TRUE) {
+            this.eat(TokenType.TRUE)
+            return new ast.Boolean(token)
+        }
+        else if (this.currToken.type === TokenType.FALSE) {
+            this.eat(TokenType.FALSE)
+            return new ast.Boolean(token)
         }
         else if (this.currToken.type === TokenType.L_PAREN) {
             this.eat(TokenType.L_PAREN)
-            const expr = this.numExpr()
+            const expr = this.expr()
             this.eat(TokenType.R_PAREN)
             return expr
         }
         else if (this.currToken.type === TokenType.ID) {
             return this.variable()
         }
-        else {
-            const num = new ast.Number(this.currToken)
-            this.eat(TokenType.NUMBER_CONST)
-            return num
-        }
+
+        throw new Error("unexpected primary token")
     }
 
-    private bool(): ast.AST {
-        const bool = new ast.Boolean(this.currToken)
-        if (this.currToken.type === TokenType.TRUE) {
-            this.eat(TokenType.TRUE)
-        }
-        else { // FALSE
-            this.eat(TokenType.FALSE)
-        }
-
-        return bool
+    private variable(): ast.AST {
+        const idToken = this.currToken
+        this.eat(TokenType.ID)
+        return new ast.Var(idToken)
     }
 
     private eat(tokenType: TokenType): void {
-        //console.log(tokenType, this.currToken)
+        console.log(tokenType, this.currToken)
         if (this.currToken.type === tokenType) {
             this.currToken = this.nextToken()
             return
         }
 
-        throw new Error(`invalid syntax: line ${ this.tokenizer.line } col ${ this.tokenizer.col }`)
+        throw new Error(
+            `invalid syntax: line ${ this.tokenizer.line } 
+            col ${ this.tokenizer.col }`)
     }
 
     private nextToken(): Token {
