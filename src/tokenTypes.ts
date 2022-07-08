@@ -7,16 +7,16 @@ enum TokenType {
     FLOOR = 'FLOOR',
     MOD = 'MOD',
     EXPONENT = 'EXPONENT',
-    //LT = 'LT'
-    //LTE = 'LTE'
-    //GTE = 'GTE',
-    //GT = 'GT,
+    LT = 'LT',
+    LTE = 'LTE',
+    GTE = 'GTE',
+    GT = 'GT',
     ASSIGN = 'ASSIGN',
-    //EQUAL = 'EQUAL',
-    //NOT_EQUAL = 'NOT_EQUAL',
-    //NOT = 'NOT',
-    //LOGICAL_OR = 'LOGICAL_OR',
-    //LOGICAL_AND = 'LOGICAL_AND',
+    EQUAL = 'EQUAL',
+    NOT_EQUAL = 'NOT_EQUAL',
+    NOT = 'NOT',
+    LOGICAL_OR = 'LOGICAL_OR',
+    LOGICAL_AND = 'LOGICAL_AND',
 
     // delimiters
     L_PAREN = 'L_PAREN',

@@ -79,9 +79,51 @@ export default class Tokenizer {
                 this.advance()
                 return new Token(TokenType.SEMI, ';')
             }
+            if (this.currChar === '=' && this.nextChar() === '=') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.EQUAL, '==')
+            }
             if (this.currChar === '=') {
                 this.advance()
                 return new Token(TokenType.ASSIGN, '=')
+            }
+            if (this.currChar === '!' && this.nextChar() === '=') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.NOT_EQUAL, '!=')
+            }
+            if (this.currChar === '!') {
+                this.advance()
+                return new Token(TokenType.NOT, '!')
+            }
+            if (this.currChar === '<' && this.nextChar() === '=') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.LTE, '<=')
+            }
+            if (this.currChar === '<') {
+                this.advance()
+                return new Token(TokenType.LT, '<')
+            }
+            if (this.currChar === '>' && this.nextChar() === '=') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.GTE, '>=')
+            }
+            if (this.currChar === '>') {
+                this.advance()
+                return new Token(TokenType.GT, '>')
+            }
+            if (this.currChar === '&' && this.nextChar() === '&') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.LOGICAL_AND, '&&')
+            }
+            if (this.currChar === '|' && this.nextChar() === '|') {
+                this.advance()
+                this.advance()
+                return new Token(TokenType.LOGICAL_OR, '||')
             }
             if (this.currCharIsDigit()) {
                 return this.numberToken()
