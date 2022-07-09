@@ -25,6 +25,14 @@ export class Number extends AST {
     }
 }
 
+export class String extends AST {
+    value: string
+    constructor(token: Token) {
+        super(token)
+        this.value = this.token.value as string
+    }
+}
+
 export class Boolean extends AST {
     value: boolean
     constructor(token: Token) {

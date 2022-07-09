@@ -32,7 +32,7 @@ enum TokenType {
 
     // keywords
     NUMBER = 'NUMBER',
-    //STRING = 'STRING',
+    STRING = 'STRING',
     BOOLEAN = 'BOOLEAN',
     //ARRAY = 'ARRAY',
     NULL = 'NULL',
@@ -50,7 +50,7 @@ enum TokenType {
 
     // misc
     NUMBER_CONST = 'NUMBER_CONST',
-    // STRING_CONST = 'string_const',
+    STRING_CONST = 'STRING_CONST',
     ID = 'ID',
     EOF = 'EOF',
     BLOCK = 'BLOCK'
@@ -60,7 +60,7 @@ export default TokenType
 
 export const KEYWORDS = {
     NUMBER: 'number', 
-    //STRING: 'string', 
+    STRING: 'string', 
     BOOLEAN: 'bool', 
     //ARRAY: 'array',
     NULL: 'null', 

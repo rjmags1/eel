@@ -125,6 +125,9 @@ export default class Tokenizer {
                 this.advance()
                 return new Token(TokenType.LOGICAL_OR, '||')
             }
+            if (this.currChar === "'" || this.currChar === '"') {
+                return this.stringToken()
+            }
             if (this.currCharIsDigit()) {
                 return this.numberToken()
             }
@@ -216,6 +219,21 @@ export default class Tokenizer {
 
         const value = Number(digits.join(""))
         return new Token(TokenType.NUMBER_CONST, value)
+    }
+
+    private stringToken(): Token {
+        const quote = this.currChar
+        this.advance()
+
+        const chars = []
+        while (this.currChar !== quote) {
+            chars.push(this.currChar)
+            this.advance()
+        }
+        this.advance()
+
+        const str = chars.join("")
+        return new Token(TokenType.STRING_CONST, str)
     }
 
     private currCharIsDigit(): boolean {

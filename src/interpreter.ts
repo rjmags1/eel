@@ -4,7 +4,7 @@ import TokenType from "./tokenTypes"
 
 
 interface VarInfo {
-    value: number | boolean | undefined
+    value: number | boolean | string | null | undefined
     type: TokenType
 }
 
@@ -21,7 +21,7 @@ export default class Interpreter {
         this.visit(ast)
     }
 
-    private visit(node: ast.AST): number | boolean | null | void {
+    private visit(node: ast.AST): number | boolean | null | string | void {
         if (node instanceof ast.UnaryOp) {
             return this.visitUnaryOp(node)
         }
@@ -49,6 +49,9 @@ export default class Interpreter {
         else if (node instanceof ast.Null) {
             return this.visitNull(node)
         }
+        else if (node instanceof ast.String) {
+            return this.visitString(node)
+        }
 
         throw new Error('runtime error')
     }
@@ -67,21 +70,22 @@ export default class Interpreter {
         const alias = declaringAndAssigning ?
             (left as ast.VarDecl).alias : left.token.value as string
         if (!declaringAndAssigning && !this.varIsDeclared(alias)) {
-            throw new Error( `reference error: ${ alias } has not been declared`) 
+            throw new Error(`reference error: ${ alias } has not been declared`) 
         }
 
         const declaredType = (this.globalMemory.get(alias) as VarInfo).type
         const assignedVal = this.visit(right)
         if (assignedVal !== null && (
             (declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') ||
-            (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean'))) {
+            (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean') ||
+            (declaredType === TokenType.STRING && typeof assignedVal !== 'string'))) {
             throw new Error(
-                `type error: var ${ alias } of type ${ declaredType.toLowerCase() } cannot 
+                `type error: var ${ alias } of type ${ declaredType.toLowerCase() } cannot
                 be assigned value of type ${ typeof assignedVal }`)
         }
 
         this.globalMemory.set(alias, { 
-            value: assignedVal as number | boolean,
+            value: assignedVal as number | boolean | string | null,
             type: declaredType 
         })
 
@@ -97,11 +101,11 @@ export default class Interpreter {
         this.globalMemory.set(alias, { value: undefined, type: type })
     }
 
-    private visitVar(node: ast.Var): number | boolean {
+    private visitVar(node: ast.Var): number | boolean | null | string {
         const alias = node.token.value as string
         if (this.varIsDeclared(alias) && this.varIsDefined(alias)) {
             const varInfo = this.globalMemory.get(alias) as VarInfo
-            return varInfo.value as number | boolean
+            return varInfo.value as number | boolean | string | null
         }
 
         throw new Error(`reference error: ${ alias } not defined`)
@@ -124,6 +128,10 @@ export default class Interpreter {
     }
     
     private visitBoolean(node: ast.Boolean): boolean {
+        return node.value
+    }
+
+    private visitString(node: ast.String): string {
         return node.value
     }
 
@@ -191,6 +199,21 @@ export default class Interpreter {
             if (op === TokenType.MINUS) {
                 return left - right
             }
+            if (op === TokenType.LT) {
+                return left < right
+            }
+            if (op === TokenType.LTE) {
+                return left <= right
+            }
+            if (op === TokenType.GT) {
+                return left > right
+            }
+            if (op === TokenType.GTE) {
+                return left >= right
+            }
+        }
+
+        else if (typeof left === 'string' && typeof right === 'string') {
             if (op === TokenType.LT) {
                 return left < right
             }

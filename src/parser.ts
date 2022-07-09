@@ -46,18 +46,21 @@ export default class Parser {
     }
 
     private typeSpecifier(): Token {
+        const token = this.currToken
         if (this.currToken.type === TokenType.NUMBER) {
-            const numberTypeToken = this.currToken
             this.eat(TokenType.NUMBER)
-            return numberTypeToken
         }
-        if (this.currToken.type === TokenType.BOOLEAN) {
-            const boolTypeToken = this.currToken
+        else if (this.currToken.type === TokenType.BOOLEAN) {
             this.eat(TokenType.BOOLEAN)
-            return boolTypeToken
+        }
+        else if (this.currToken.type === TokenType.STRING) {
+            this.eat(TokenType.STRING)
+        }
+        else {
+            throw new Error('unexpected token - expected a type specifier')
         }
 
-        throw new Error('unexpected token - expected a type specifier')
+        return token
     }
 
     private expr(): ast.AST {
@@ -223,6 +226,10 @@ export default class Parser {
         else if (this.currToken.type === TokenType.NULL) {
             this.eat(TokenType.NULL)
             return new ast.Null(token)
+        }
+        else if (this.currToken.type === TokenType.STRING_CONST) {
+            this.eat(TokenType.STRING_CONST)
+            return new ast.String(token)
         }
 
         throw new Error("unexpected primary token")

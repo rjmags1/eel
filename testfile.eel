@@ -17,3 +17,6 @@ bool7 = !bool7;
 
 bool5 = null;
 let num5: number = null;
+let s1: string = "asdf";
+let s2: string = "asdf2";
+bool5 = s1 != s2;
