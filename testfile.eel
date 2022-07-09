@@ -15,8 +15,22 @@ let bool6: bool = 101 != num2 && (((100 - 82) ** 0) == 1);
 let bool7: bool = (((100 - 82) ** 0) == 1);
 bool7 = !bool7;
 
-bool5 = null;
+bool7 = null;
 let num5: number = null;
 let s1: string = "asdf";
 let s2: string = "asdf2";
-bool5 = s1 != s2;
+let s3: string = "asdf";
+bool7 = s1 != s2;
+bool7 = s1 == s3;
+bool7 = s1 < s3;
+bool7 = s1 <= s3;
+bool7 = s1 >= s3;
+
+let arr1: array = [1, 2, 3, 4,];
+let arr2: array = [1, 2, [3, 4], true, 4 + 5 - (2 ** 2), "asdf", num2];
+let arr3: array = [1, 2, 3, 4];
+let arr4: array = [1, 2, 3];
+bool7 = arr1 == arr3;
+bool7 = arr2 != arr2;
+bool7 = arr4 <= arr3;
+bool7 = arr4 > arr3;

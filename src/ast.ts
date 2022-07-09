@@ -17,6 +17,14 @@ export class Null extends AST {
     }
 }
 
+export class Array extends AST {
+    value: any[]
+    constructor(token: Token) {
+        super(token)
+        this.value = this.token.value as any[]
+    }
+}
+
 export class Number extends AST {
     value: number
     constructor(token: Token) {

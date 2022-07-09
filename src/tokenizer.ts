@@ -1,7 +1,7 @@
 import TokenType, { KEYWORDS } from "./tokenTypes"
 
 
-export type TokenValue = number | null | string | boolean //| Array<any> | object
+export type TokenValue = number | null | string | boolean | any[] //| object
 export class Token {
     type: TokenType
     value: TokenValue
@@ -96,6 +96,18 @@ export default class Tokenizer {
             if (this.currChar === '!') {
                 this.advance()
                 return new Token(TokenType.NOT, '!')
+            }
+            if (this.currChar === '[') {
+                this.advance()
+                return new Token(TokenType.L_BRACK, '[')
+            }
+            if (this.currChar === ']') {
+                this.advance()
+                return new Token(TokenType.R_BRACK, ']')
+            }
+            if (this.currChar === ',') {
+                this.advance()
+                return new Token(TokenType.COMMA, ',')
             }
             if (this.currChar === '<' && this.nextChar() === '=') {
                 this.advance()

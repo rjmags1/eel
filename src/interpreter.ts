@@ -4,7 +4,7 @@ import TokenType from "./tokenTypes"
 
 
 interface VarInfo {
-    value: number | boolean | string | null | undefined
+    value: number | boolean | string | null | undefined | any[]
     type: TokenType
 }
 
@@ -21,7 +21,7 @@ export default class Interpreter {
         this.visit(ast)
     }
 
-    private visit(node: ast.AST): number | boolean | null | string | void {
+    private visit(node: ast.AST): number | boolean | null | string | any[] | void {
         if (node instanceof ast.UnaryOp) {
             return this.visitUnaryOp(node)
         }
@@ -52,6 +52,9 @@ export default class Interpreter {
         else if (node instanceof ast.String) {
             return this.visitString(node)
         }
+        else if (node instanceof ast.Array) {
+            return this.visitArray(node)
+        }
 
         throw new Error('runtime error')
     }
@@ -76,6 +79,7 @@ export default class Interpreter {
         const declaredType = (this.globalMemory.get(alias) as VarInfo).type
         const assignedVal = this.visit(right)
         if (assignedVal !== null && (
+            (declaredType === TokenType.ARRAY && !(assignedVal instanceof Array)) ||
             (declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') ||
             (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean') ||
             (declaredType === TokenType.STRING && typeof assignedVal !== 'string'))) {
@@ -85,7 +89,7 @@ export default class Interpreter {
         }
 
         this.globalMemory.set(alias, { 
-            value: assignedVal as number | boolean | string | null,
+            value: assignedVal as number | boolean | string | null | any[],
             type: declaredType 
         })
 
@@ -101,11 +105,11 @@ export default class Interpreter {
         this.globalMemory.set(alias, { value: undefined, type: type })
     }
 
-    private visitVar(node: ast.Var): number | boolean | null | string {
+    private visitVar(node: ast.Var): number | boolean | null | string | any[] {
         const alias = node.token.value as string
         if (this.varIsDeclared(alias) && this.varIsDefined(alias)) {
             const varInfo = this.globalMemory.get(alias) as VarInfo
-            return varInfo.value as number | boolean | string | null
+            return varInfo.value as number | boolean | string | null | any[]
         }
 
         throw new Error(`reference error: ${ alias } not defined`)
@@ -117,6 +121,10 @@ export default class Interpreter {
 
     private varIsDefined(alias: string): boolean {
         return this.globalMemory.get(alias)?.value !== undefined
+    }
+
+    private visitArray(node: ast.Array): any[] {
+        return node.value.map((elem: ast.AST) => this.visit(elem))
     }
 
     private visitNull(node: ast.Null): null {
@@ -171,8 +179,8 @@ export default class Interpreter {
         const left = this.visit(node.left)
         const right = this.visit(node.right)
 
-        if ((left === null || right === null) && 
-            [TokenType.EQUAL, TokenType.NOT_EQUAL].includes(op)) {
+        if ((left === null || right === null) &&
+            ![TokenType.EQUAL, TokenType.NOT_EQUAL].includes(op)) {
             throw new Error(
                 `cannot perform op ${ node.op.value } on null values`)
         }
@@ -236,6 +244,27 @@ export default class Interpreter {
                 return left || right
             }
         }
+
+        else if (left instanceof Array && right instanceof Array) {
+            if (op === TokenType.LT) {
+                return left < right
+            }
+            if (op === TokenType.LTE) {
+                return left < right || this.arrayEqual(left, right)
+            }
+            if (op === TokenType.GT) {
+                return left > right
+            }
+            if (op === TokenType.GTE) {
+                return left > right || this.arrayEqual(left, right)
+            }
+            if (op === TokenType.NOT_EQUAL) {
+                return !this.arrayEqual(left, right)
+            }
+            if (op === TokenType.EQUAL) {
+                return this.arrayEqual(left, right)
+            }
+        }
         
         if (op === TokenType.NOT_EQUAL) {
             return left !== right
@@ -247,5 +276,18 @@ export default class Interpreter {
         throw new Error(
             `cannot perform ${ op.toLowerCase() } on operands of type 
             ${ typeof left } and ${ typeof right }`)
+    }
+
+    private arrayEqual(left: any[], right: any[]): boolean {
+        if (left === right) return true
+        if (left.length !== right.length) return false
+
+        let i = 0, l, r
+        for (; i < left.length; i++) {
+            l = left[i], r = right[i]
+            if (l !== r) break
+        }
+
+        return l === r
     }
 }

@@ -56,6 +56,9 @@ export default class Parser {
         else if (this.currToken.type === TokenType.STRING) {
             this.eat(TokenType.STRING)
         }
+        else if (this.currToken.type === TokenType.ARRAY) {
+            this.eat(TokenType.ARRAY)
+        }
         else {
             throw new Error('unexpected token - expected a type specifier')
         }
@@ -231,8 +234,28 @@ export default class Parser {
             this.eat(TokenType.STRING_CONST)
             return new ast.String(token)
         }
+        else if (this.currToken.type === TokenType.L_BRACK) {
+            return this.arrayLiteral()
+        }
 
         throw new Error("unexpected primary token")
+    }
+
+    private arrayLiteral(): ast.AST {
+        this.eat(TokenType.L_BRACK)
+        const elems = []
+        while (this.currToken.type !== TokenType.R_BRACK) {
+            const elem = this.expr()
+            elems.push(elem)
+
+            if (this.currToken.type as TokenType !== TokenType.R_BRACK) {
+                this.eat(TokenType.COMMA)
+            }
+        }
+        this.eat(TokenType.R_BRACK)
+
+        const arrayToken = new Token(TokenType.ARRAY_CONST, elems)
+        return new ast.Array(arrayToken)
     }
 
     private variable(): ast.AST {
