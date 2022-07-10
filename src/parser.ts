@@ -23,7 +23,7 @@ export default class Parser {
 
     private varDeclareAssign(): ast.AST {
         const left = this.currToken.type === TokenType.LET ? 
-            this.varDecl() : this.variable()
+            this.varDecl() : this.ref()
         if (this.currToken.type !== TokenType.ASSIGN) {
             const varDecl = left
             return varDecl
@@ -224,7 +224,7 @@ export default class Parser {
             return expr
         }
         else if (this.currToken.type === TokenType.ID) {
-            return this.variable()
+            return this.ref()
         }
         else if (this.currToken.type === TokenType.NULL) {
             this.eat(TokenType.NULL)
@@ -235,10 +235,25 @@ export default class Parser {
             return new ast.String(token)
         }
         else if (this.currToken.type === TokenType.L_BRACK) {
-            return this.arrayLiteral()
+            return this.ref()
         }
 
         throw new Error("unexpected primary token")
+    }
+
+    private ref(): ast.AST {
+        let ref = this.currToken.type === TokenType.L_BRACK ?
+            this.arrayLiteral() : this.variable()
+
+        if (this.currToken.type !== TokenType.L_BRACK) return ref
+        
+        const idxs = []
+        while (this.currToken.type === TokenType.L_BRACK) {
+            this.eat(TokenType.L_BRACK)
+            idxs.push(this.term())
+            this.eat(TokenType.R_BRACK)
+        }
+        return new ast.ArrayIdx(ref, idxs)
     }
 
     private arrayLiteral(): ast.AST {

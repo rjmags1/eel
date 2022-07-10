@@ -25,6 +25,16 @@ export class Array extends AST {
     }
 }
 
+export class ArrayIdx extends AST {
+    outerArray: AST
+    idxs: AST[]
+    constructor(outerArray: AST, idxs: AST[]) {
+        super(outerArray.token)
+        this.outerArray = outerArray
+        this.idxs = idxs
+    }
+}
+
 export class Number extends AST {
     value: number
     constructor(token: Token) {
