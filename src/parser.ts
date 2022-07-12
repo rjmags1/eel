@@ -15,32 +15,82 @@ export default class Parser {
         const rootToken = new Token(TokenType.ROOT, 'root', 0, 0)
         const root = new ast.Block(rootToken, true) // root=true
         while (this.currToken.type != TokenType.EOF) {
-            root.children.push(this.varDeclareAssign())
-            this.eat(TokenType.SEMI)
+            root.children.push(this.statement(true)) // topLevel=true
         }
 
         return root
     }
 
-    private varDeclareAssign(): ast.AST {
-        let left
-        if (this.currToken.type === TokenType.LET) {
-            left = this.varDecl()
+    private block(): ast.Block {
+        const block = new ast.Block(this.currToken)
+        this.eat(TokenType.L_CURLY)
+        while (this.currToken.type !== TokenType.R_CURLY) {
+            block.children.push(this.statement())
         }
-        else if (this.currToken.type === TokenType.STRUCT) {
-            left = this.structDecl()
+        this.eat(TokenType.R_CURLY)
+
+        return block
+    }
+
+    private statement(topLevel=false): ast.AST {
+        if (this.currToken.type === TokenType.IF) {
+            return this.multiSelection()
         }
         else {
-            left = this.ref()
+            return this.varDeclareAssign(topLevel)
+        }
+    }
+
+    private multiSelection(): ast.MultiSelection {
+        const ifToken = this.currToken
+        const selections: ast.Selection[] = [this.selection()]
+        let defaultBlock: ast.Block | null = null
+        while (this.currToken.type === TokenType.ELSE) {
+            this.eat(TokenType.ELSE)
+            if (this.currToken.type as TokenType === TokenType.L_CURLY) {
+                defaultBlock = this.block()
+                break
+            }
+
+            selections.push(this.selection())
         }
 
-        if (this.currToken.type as TokenType !== TokenType.ASSIGN) {
+        return new ast.MultiSelection(ifToken, selections, defaultBlock)
+    }
+
+    private selection(): ast.Selection {
+        const ifToken = this.currToken
+        this.eat(TokenType.IF)
+        this.eat(TokenType.L_PAREN)
+        const condition = this.expr()
+        this.eat(TokenType.R_PAREN)
+        return new ast.Selection(ifToken, condition, this.block())
+    }
+
+    private varDeclareAssign(topLevel: boolean): ast.AST {
+        if (this.currToken.type === TokenType.STRUCT) {
+            if (!topLevel) {
+                throw new Error(`syntax error: illegal non top level struct 
+                    declaration ${ this.stringifyLineCol(this.currToken) }`)
+            }
+            const structDec = this.structDecl()
+            this.eat(TokenType.SEMI)
+            return structDec
+        }
+
+        const left = this.currToken.type === TokenType.LET ?
+            this.varDecl() : this.ref()
+        if (this.currToken.type as TokenType !== TokenType.ASSIGN &&
+            left instanceof ast.VarDecl) {
+            this.eat(TokenType.SEMI)
             return left
         }
+
         const assignToken = this.currToken
         this.eat(TokenType.ASSIGN)
-
-        return new ast.Assign(left, assignToken, this.expr())
+        const assignment = new ast.Assign(left, assignToken, this.expr())
+        this.eat(TokenType.SEMI)
+        return assignment
     }
 
     private stringifyLineCol(token: Token): string {

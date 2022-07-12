@@ -1,5 +1,4 @@
 import { Token } from './tokenizer'
-import TokenType from './tokenTypes'
 
 
 export class AST { 
@@ -144,5 +143,25 @@ export class StructMember extends AST {
         super(fieldToken)
         this.field = this.token.value as string
         this.structInstance = struct
+    }
+}
+
+export class MultiSelection extends AST {
+    selections: Selection[]
+    default: Block | null
+    constructor(ifToken: Token, selections: Selection[], def: Block | null) {
+        super(ifToken)
+        this.selections = selections
+        this.default = def
+    }
+}
+
+export class Selection extends AST {
+    condition: AST
+    block: Block
+    constructor(ifToken: Token, condition: AST, block: Block) {
+        super(ifToken)
+        this.condition = condition
+        this.block = block
     }
 }

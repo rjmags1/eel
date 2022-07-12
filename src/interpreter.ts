@@ -71,6 +71,12 @@ export default class Interpreter {
         else if (node instanceof ast.StructMember) {
             return this.visitStructMember(node)
         }
+        else if (node instanceof ast.MultiSelection) {
+            return this.visitMultiSelection(node)
+        }
+        else if (node instanceof ast.Selection) {
+            return this.visitSelection(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ this.stringifyLineCol(node) }`)
