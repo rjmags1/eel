@@ -26,12 +26,12 @@ export class Array extends AST {
 }
 
 export class ArrayIdx extends AST {
-    outerArray: AST
-    idxs: AST[]
-    constructor(outerArray: AST, idxs: AST[]) {
-        super(outerArray.token)
-        this.outerArray = outerArray
-        this.idxs = idxs
+    array: AST
+    idx: AST
+    constructor(array: AST, idx: AST) {
+        super(array.token)
+        this.array = array
+        this.idx = idx
     }
 }
 

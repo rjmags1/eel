@@ -3,8 +3,12 @@ import * as ast from "./ast"
 import TokenType from "./tokenTypes"
 
 
-interface VarInfo {
-    value: number | boolean | string | null | undefined | any[]
+type InternalValue = number | boolean | string | null | any[] 
+
+type IndexInfo = { array: any[], idx: number }
+
+type VarInfo = {
+    value: InternalValue | undefined
     type: TokenType
 }
 
@@ -21,7 +25,7 @@ export default class Interpreter {
         this.visit(ast)
     }
 
-    private visit(node: ast.AST): number | boolean | null | string | any[] | void {
+    private visit(node: ast.AST): InternalValue | void {
         if (node instanceof ast.UnaryOp) {
             return this.visitUnaryOp(node)
         }
@@ -56,7 +60,7 @@ export default class Interpreter {
             return this.visitArray(node)
         }
         else if (node instanceof ast.ArrayIdx) {
-            return this.visitArrayIdx(node)
+            return this.visitArrayIdx(node) as InternalValue
         }
 
         throw new Error('runtime error')
@@ -96,49 +100,34 @@ export default class Interpreter {
         }
 
         this.globalMemory.set(alias, { 
-            value: assignedVal as number | boolean | string | null | any[],
+            value: assignedVal as InternalValue,
             type: declaredType 
         })
 
         console.log(this.globalMemory)
     }
 
-    private mutateArray(indexed: ast.ArrayIdx, newValue: ast.AST) {
-        if (!(indexed.outerArray instanceof ast.Var)) {
-            throw new Error("invalid assignment to array literal")
+    private visitArrayIdx(node: ast.ArrayIdx, mutating=false): InternalValue | IndexInfo {
+        const array = this.visit(node.array)
+        let idx = this.visit(node.idx) as number
+        if (!(array instanceof Array)) {
+            throw new Error("index error: cannot index non-array value")
+        }
+        if (!(Number.isInteger(idx))) {
+            throw new Error("index error: non-integer index")
+        }
+        if (idx < 0) idx += array.length
+        if (idx < 0 || idx >= array.length) {
+            throw new Error("index error: out of bounds")
         }
 
-        const indexedArrayAlias = indexed.outerArray.token.value as string
-        if (!this.varIsDeclared(indexedArrayAlias) || 
-            !this.varIsDefined(indexedArrayAlias)) {
-            throw new Error(`${ indexedArrayAlias } is not defined`)
-        }
-        let internalArray = (
-            this.globalMemory.get(indexedArrayAlias) as VarInfo).value as any[]
-        for (const idx of indexed.idxs) {
-            if (!(internalArray instanceof Array)) {
-                throw new Error("cannot index non-array values")
-            }
+        return mutating ? { array, idx } : array[idx]
+    }
 
-            let evaluatedIdx = this.visit(idx) as number
-            if (!Number.isInteger(evaluatedIdx)) {
-                throw new Error("index error: non-integer index")
-            }
-            if (evaluatedIdx < 0) evaluatedIdx += internalArray.length
-            if (evaluatedIdx >= internalArray.length || evaluatedIdx < 0) {
-                throw new Error("index error: out of bounds")
-            }
-
-            if (indexed.idxs[indexed.idxs.length - 1] === idx) {
-                internalArray[evaluatedIdx] = this.visit(newValue)
-                break
-            }
-
-            internalArray = internalArray[evaluatedIdx]
-        }
-
+    private mutateArray(indexed: ast.ArrayIdx, newValue: ast.AST): void {
+        const { array, idx } = this.visitArrayIdx(indexed, true) as IndexInfo
+        array[idx] = this.visit(newValue)
         console.log(this.globalMemory)
-        return
     }
 
     private visitVarDecl(node: ast.VarDecl): void {
@@ -150,11 +139,11 @@ export default class Interpreter {
         this.globalMemory.set(alias, { value: undefined, type: type })
     }
 
-    private visitVar(node: ast.Var): number | boolean | null | string | any[] {
+    private visitVar(node: ast.Var): InternalValue {
         const alias = node.token.value as string
         if (this.varIsDeclared(alias) && this.varIsDefined(alias)) {
             const varInfo = this.globalMemory.get(alias) as VarInfo
-            return varInfo.value as number | boolean | string | null | any[]
+            return varInfo.value as InternalValue
         }
 
         throw new Error(`reference error: ${ alias } not defined`)
@@ -170,39 +159,6 @@ export default class Interpreter {
 
     private visitArray(node: ast.Array): any[] {
         return node.value.map((elem: ast.AST) => this.visit(elem))
-    }
-
-    private visitArrayIdx(node: ast.ArrayIdx): number | boolean | string | null | any[] {
-        let internalArray
-        if (node.outerArray instanceof ast.Var) {
-            const indexedArrayAlias = node.outerArray.token.value as string
-            if (!this.varIsDeclared(indexedArrayAlias) || 
-                !this.varIsDefined(indexedArrayAlias)) {
-                throw new Error(`${ indexedArrayAlias } is not defined`)
-            }
-            internalArray = (
-                this.globalMemory.get(indexedArrayAlias) as VarInfo).value as any[]
-        }
-        else internalArray = this.visit(node.outerArray)
-        for (const idx of node.idxs) {
-            if (!(internalArray instanceof Array)) {
-                throw new Error("cannot index non-array values")
-            }
-
-            let evaluatedIdx = this.visit(idx) as number
-            if (!Number.isInteger(evaluatedIdx)) {
-                throw new Error("index error: non-integer index")
-            }
-            if (evaluatedIdx < 0) evaluatedIdx += internalArray.length
-            if (evaluatedIdx < 0 || evaluatedIdx >= internalArray.length) {
-                throw new Error("index error: out of bounds")
-            }
-
-            internalArray = internalArray[evaluatedIdx]
-        }
-        const lastIndexedValue = internalArray
-
-        return lastIndexedValue
     }
 
     private visitNull(node: ast.Null): null {

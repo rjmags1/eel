@@ -1,7 +1,7 @@
 import TokenType, { KEYWORDS } from "./tokenTypes"
 
 
-export type TokenValue = number | null | string | boolean | any[] //| object
+export type TokenValue = number | null | string | boolean | any[]
 export class Token {
     type: TokenType
     value: TokenValue

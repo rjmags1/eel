@@ -245,15 +245,18 @@ export default class Parser {
         let ref = this.currToken.type === TokenType.L_BRACK ?
             this.arrayLiteral() : this.variable()
 
-        if (this.currToken.type !== TokenType.L_BRACK) return ref
-        
-        const idxs = []
         while (this.currToken.type === TokenType.L_BRACK) {
-            this.eat(TokenType.L_BRACK)
-            idxs.push(this.term())
-            this.eat(TokenType.R_BRACK)
+            ref = this.idx(ref)
         }
-        return new ast.ArrayIdx(ref, idxs)
+        
+        return ref
+    }
+
+    private idx(array: ast.AST): ast.AST {
+        this.eat(TokenType.L_BRACK)
+        const idx = this.term()
+        this.eat(TokenType.R_BRACK)
+        return new ast.ArrayIdx(array, idx)
     }
 
     private arrayLiteral(): ast.AST {
