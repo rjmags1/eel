@@ -41,3 +41,15 @@ let num6: number = arr2[2][0];
 let asdf: string = arr2[2][1];
 let num8: number = 1;
 let num7: number = [1, 2, 3, 4][num8 + 1 / ((543 % 343) ** 0)];
+
+struct s1 {
+    f1: string
+};
+
+struct s2 {
+    f1: string,
+    f2: number,
+    f3: array,
+    f4: bool,
+    f5: struct s1,
+};

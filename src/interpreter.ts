@@ -1,6 +1,7 @@
 import Parser from "./parser"
 import * as ast from "./ast"
 import TokenType from "./tokenTypes"
+import { Token } from "./tokenizer"
 
 
 type InternalValue = number | boolean | string | null | any[] 
@@ -9,15 +10,17 @@ type IndexInfo = { array: any[], idx: number }
 
 type VarInfo = {
     value: InternalValue | undefined
-    type: TokenType
+    type: Token
 }
 
 export default class Interpreter {
     parser: Parser
     globalMemory: Map<string, VarInfo>
+    structs: Map<string, ast.StructField[]>
     constructor(parser: Parser) {
         this.parser = parser
         this.globalMemory = new Map()
+        this.structs = new Map()
     }
 
     interpret(): void {
@@ -62,8 +65,44 @@ export default class Interpreter {
         else if (node instanceof ast.ArrayIdx) {
             return this.visitArrayIdx(node) as InternalValue
         }
+        else if (node instanceof ast.StructDecl) {
+            return this.visitStructDecl(node)
+        }
 
         throw new Error('runtime error')
+    }
+
+    private visitStructDecl(node: ast.StructDecl) {
+        if (this.structs.has(node.name)) {
+            throw new Error(`struct of type ${ node.name } previously declared`)
+        }
+        const validTypes = new Set([
+            TokenType.ARRAY,
+            TokenType.STRING,
+            TokenType.NUMBER,
+            TokenType.BOOLEAN,
+            TokenType.ID
+        ])
+        const invalidTypes = node.fields.map(f => f.type).filter(
+            t => !validTypes.has(t.type)).map(t => t.type.toLowerCase())
+        if (invalidTypes.length > 0) {
+            throw new Error(
+                `invalid struct field type(s) ${ invalidTypes } 
+                in declaration of struct ${ node.name }`)
+        }
+        const undeclaredStructFields = node.fields.filter(
+            f => f.type.type === TokenType.ID && 
+                !this.structs.has(f.type.value as string)).map(
+                    f => (f.type.value as string).toLowerCase())
+        if (undeclaredStructFields.length > 0) {
+            throw new Error(
+                `undeclared struct types ${ undeclaredStructFields } declared 
+                as fields in declaration of struct ${ node.name }`)
+        }
+
+        this.structs.set(node.name, node.fields)
+        console.log(node.name, ':', (this.structs.get(node.name) as any).map(
+            (f: ast.StructField) => [f.name, '->', f.type]))
     }
 
     private visitBlock(node: ast.Block): void {
@@ -87,7 +126,8 @@ export default class Interpreter {
             throw new Error(`reference error: ${ alias } has not been declared`) 
         }
 
-        const declaredType = (this.globalMemory.get(alias) as VarInfo).type
+        const declaredTypeToken = (this.globalMemory.get(alias) as VarInfo).type
+        const declaredType = declaredTypeToken.type
         const assignedVal = this.visit(right)
         if (assignedVal !== null && (
             (declaredType === TokenType.ARRAY && !(assignedVal instanceof Array)) ||
@@ -101,7 +141,7 @@ export default class Interpreter {
 
         this.globalMemory.set(alias, { 
             value: assignedVal as InternalValue,
-            type: declaredType 
+            type: declaredTypeToken
         })
 
         console.log(this.globalMemory)

@@ -89,11 +89,11 @@ export class Var extends AST {
 
 export class VarDecl extends AST {
     alias: string
-    type: TokenType
+    type: Token
     constructor(declaratorToken: Token, alias: string, typeToken: Token) {
         super(declaratorToken)
         this.alias = alias
-        this.type = typeToken.type
+        this.type = typeToken
     }
 }
 
@@ -114,5 +114,25 @@ export class Block extends AST {
         super(new Token(TokenType.BLOCK, null))
         this.root = root
         this.children = []
+    }
+}
+
+export class StructDecl extends AST {
+    name: string
+    fields: StructField[]
+    constructor(declaratorToken: Token, name: string, fields: StructField[]) {
+        super(declaratorToken)
+        this.name = name
+        this.fields = fields
+    }
+}
+
+export class StructField extends AST {
+    name: string
+    type: Token
+    constructor(nameToken: Token, typeToken: Token) {
+        super(nameToken)
+        this.name = this.token.value as string
+        this.type = typeToken
     }
 }

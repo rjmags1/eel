@@ -21,12 +21,12 @@ enum TokenType {
     // delimiters
     L_PAREN = 'L_PAREN',
     R_PAREN = 'R_PAREN',
-    //L_CURLY = 'L_CURLY',
-    //R_CURLY = 'R_CURLY',
+    L_CURLY = 'L_CURLY',
+    R_CURLY = 'R_CURLY',
     L_BRACK = 'L_BRACK',
     R_BRACK = 'R_BRACK',
     SEMI = 'SEMI',
-    //DOT = 'DOT',
+    DOT = 'DOT',
     COLON = 'COLON',
     COMMA = 'COMMA',
 
@@ -46,7 +46,7 @@ enum TokenType {
     //FUNCTION = 'FUNCTION',
     TRUE = 'TRUE',
     FALSE = 'FALSE',
-    //STRUCT = 'STRUCT',
+    STRUCT = 'STRUCT',
 
     // misc
     NUMBER_CONST = 'NUMBER_CONST',
@@ -74,6 +74,6 @@ export const KEYWORDS = {
     FALSE: 'false',
     LET: 'let', 
     //FUNCTION: 'function', 
-    //STRUCT: 'struct', 
+    STRUCT: 'struct', 
     //RETURN: 'return'
 }

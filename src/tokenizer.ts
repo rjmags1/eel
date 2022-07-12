@@ -140,6 +140,18 @@ export default class Tokenizer {
             if (this.currChar === "'" || this.currChar === '"') {
                 return this.stringToken()
             }
+            if (this.currChar === '{') {
+                this.advance()
+                return new Token(TokenType.L_CURLY, '{')
+            }
+            if (this.currChar === '}') {
+                this.advance()
+                return new Token(TokenType.R_CURLY, '}')
+            }
+            if (this.currChar === '.') {
+                this.advance()
+                return new Token(TokenType.DOT, '.')
+            }
             if (this.currCharIsDigit()) {
                 return this.numberToken()
             }

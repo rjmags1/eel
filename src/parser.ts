@@ -22,17 +22,56 @@ export default class Parser {
     }
 
     private varDeclareAssign(): ast.AST {
-        const left = this.currToken.type === TokenType.LET ? 
-            this.varDecl() : this.ref()
-        if (this.currToken.type !== TokenType.ASSIGN) {
-            const varDecl = left
-            return varDecl
+        let left
+        if (this.currToken.type === TokenType.LET) {
+            left = this.varDecl()
+            if (this.currToken.type as TokenType !== TokenType.ASSIGN) {
+                return left
+            }
+        }
+        else if (this.currToken.type === TokenType.STRUCT) {
+            left = this.structDecl()
+            return left
+        }
+        else {
+            left = this.ref()
         }
 
         const assignToken = this.currToken
         this.eat(TokenType.ASSIGN)
 
         return new ast.Assign(left, assignToken, this.expr())
+    }
+
+    private structDecl(): ast.StructDecl {
+        const declaratorToken = this.currToken
+        this.eat(TokenType.STRUCT)
+        const structName = this.currToken.value as string
+        this.eat(TokenType.ID)
+        this.eat(TokenType.L_CURLY)
+        const fields: ast.StructField[] = []
+        while (this.currToken.type !== TokenType.R_CURLY) {
+            fields.push(this.structField())
+        }
+        this.eat(TokenType.R_CURLY)
+
+        if (fields.length === 0) {
+            throw new Error("empty structs not allowed")
+        }
+
+        return new ast.StructDecl(declaratorToken, structName, fields)
+    }
+
+    private structField(): ast.StructField {
+        const field = this.currToken
+        this.eat(TokenType.ID)
+        this.eat(TokenType.COLON)
+        const fieldType = this.typeSpecifier()
+        if (this.currToken.type !== TokenType.R_CURLY) {
+            this.eat(TokenType.COMMA)
+        }
+
+        return new ast.StructField(field, fieldType)
     }
 
     private varDecl(): ast.VarDecl {
@@ -58,6 +97,12 @@ export default class Parser {
         }
         else if (this.currToken.type === TokenType.ARRAY) {
             this.eat(TokenType.ARRAY)
+        }
+        else if (this.currToken.type === TokenType.STRUCT) {
+            this.eat(TokenType.STRUCT)
+            const structType = this.currToken
+            this.eat(TokenType.ID)
+            return structType
         }
         else {
             throw new Error('unexpected token - expected a type specifier')
