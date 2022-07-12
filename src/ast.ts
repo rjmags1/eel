@@ -136,3 +136,13 @@ export class StructField extends AST {
         this.type = typeToken
     }
 }
+
+export class StructMember extends AST {
+    field: string
+    structInstance: AST
+    constructor(fieldToken: Token, struct: AST) {
+        super(fieldToken)
+        this.field = this.token.value as string
+        this.structInstance = struct
+    }
+}

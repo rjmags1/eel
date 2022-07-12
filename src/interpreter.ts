@@ -68,26 +68,69 @@ export default class Interpreter {
         else if (node instanceof ast.StructDecl) {
             return this.visitStructDecl(node)
         }
+        else if (node instanceof ast.StructMember) {
+            return this.visitStructMember(node)
+        }
 
         throw new Error('runtime error')
     }
 
-    private visitStructDecl(node: ast.StructDecl) {
+    private visitStructMember(node: ast.StructMember, mutating=false): InternalValue {
+        const structInstance = this.visit(node.structInstance) as StructInstance
+        if (!(structInstance instanceof StructInstance)) {
+            throw new Error(`cannot access members of not struct instances`)
+        }
+        if (!(structInstance.members.hasOwnProperty(node.field))) {
+            const internalStructInfo = this.globalMemory.get(
+                structInstance.firstAlias) as VarInfo
+            throw new Error(
+                `reference error: field ${ node.field } not present on 
+                ${ structInstance } of type struct ${ internalStructInfo.type.type }`)
+        }
+
+        return mutating ? structInstance : structInstance.members[node.field]
+    }
+
+    private mutateStruct(left: ast.StructMember, newValue: ast.AST): void {
+        const internalStructInstance = this.visitStructMember(left, true) as StructInstance
+        const structType = internalStructInstance.structType
+        const fields = this.structs.get(structType) as ast.StructField[]
+        const relevantFieldInfo = fields.filter(f => f.name === left.field)[0]
+        const fieldTypeToken = relevantFieldInfo.type
+        const visitedNewVal = this.visit(newValue) as InternalValue
+        if (!this.assignedCorrectType(relevantFieldInfo.type, visitedNewVal)) {
+            const fieldType = fieldTypeToken.type
+            const dType = fieldTypeToken.type === TokenType.ID ? 
+                `struct ${ fieldTypeToken.value }` : fieldType.toLowerCase()
+            const aType = visitedNewVal instanceof StructInstance ?
+                `struct ${ visitedNewVal.structType }` : typeof visitedNewVal
+            throw new Error(
+                `type error: declared field of type ${ dType } of ${ left.structInstance }
+                of type struct ${ internalStructInstance.structType } cannot be assigned
+                value of type ${ aType }`)
+        }
+
+        console.log("before", internalStructInstance)
+        internalStructInstance.members[left.field] = visitedNewVal
+        console.log("after", internalStructInstance)
+    }
+
+    private visitStructDecl(node: ast.StructDecl): void {
         if (this.structs.has(node.name)) {
             throw new Error(`struct of type ${ node.name } previously declared`)
         }
-        const validTypes = new Set([
+        const validFieldTypes = new Set([
             TokenType.ARRAY,
             TokenType.STRING,
             TokenType.NUMBER,
             TokenType.BOOLEAN,
             TokenType.ID
         ])
-        const invalidTypes = node.fields.map(f => f.type).filter(
-            t => !validTypes.has(t.type)).map(t => t.type.toLowerCase())
-        if (invalidTypes.length > 0) {
+        const invalidFieldTypes = node.fields.map(f => f.type).filter(
+            t => !validFieldTypes.has(t.type)).map(t => t.type.toLowerCase())
+        if (invalidFieldTypes.length > 0) {
             throw new Error(
-                `invalid struct field type(s) ${ invalidTypes } 
+                `invalid struct field type(s) ${ invalidFieldTypes } 
                 in declaration of struct ${ node.name }`)
         }
         const undeclaredStructFields = node.fields.filter(
@@ -117,6 +160,10 @@ export default class Interpreter {
             this.mutateArray(left, right)
             return
         }
+        if (left instanceof ast.StructMember) {
+            this.mutateStruct(left, right)
+            return
+        }
 
         const declaringAndAssigning = left.token.type === TokenType.LET
         if (declaringAndAssigning) this.visitVarDecl(left as ast.VarDecl)
@@ -128,15 +175,15 @@ export default class Interpreter {
 
         const declaredTypeToken = (this.globalMemory.get(alias) as VarInfo).type
         const declaredType = declaredTypeToken.type
-        const assignedVal = this.visit(right)
-        if (assignedVal !== null && (
-            (declaredType === TokenType.ARRAY && !(assignedVal instanceof Array)) ||
-            (declaredType === TokenType.NUMBER && typeof assignedVal !== 'number') ||
-            (declaredType === TokenType.BOOLEAN && typeof assignedVal !== 'boolean') ||
-            (declaredType === TokenType.STRING && typeof assignedVal !== 'string'))) {
+        const assignedVal = this.visit(right) as InternalValue
+        if (!this.assignedCorrectType(declaredTypeToken, assignedVal)) {
+            const dType = declaredType === TokenType.ID ? 
+                `struct ${ declaredTypeToken.value }` : declaredType.toLowerCase()
+            const aType = assignedVal instanceof StructInstance ?
+                `struct ${ assignedVal.structType }` : typeof assignedVal
             throw new Error(
-                `type error: var ${ alias } of type ${ declaredType.toLowerCase() } cannot
-                be assigned value of type ${ typeof assignedVal }`)
+                `type error: var ${ alias } of type ${ dType } cannot
+                be assigned value of type ${ aType }`)
         }
 
         this.globalMemory.set(alias, { 
@@ -145,6 +192,32 @@ export default class Interpreter {
         })
 
         console.log(this.globalMemory)
+    }
+
+    private assignedCorrectType(
+        declaredTypeToken: Token, assignedVal: InternalValue): boolean {
+        const declaredType = declaredTypeToken.type
+        if (assignedVal === null) {
+            return true
+        }
+        if (declaredType === TokenType.ID) {
+            return assignedVal instanceof StructInstance &&
+                declaredTypeToken.value === (assignedVal as StructInstance).structType
+        }
+        if (declaredType === TokenType.ARRAY) {
+            return assignedVal instanceof Array
+        }
+        if (declaredType === TokenType.NUMBER) {
+            return typeof assignedVal === 'number'
+        }
+        if (declaredType === TokenType.BOOLEAN) {
+            return typeof assignedVal === 'boolean'
+        }
+        if (declaredType === TokenType.STRING) {
+            return typeof assignedVal === 'string'
+        }
+        
+        throw new Error(`unexpected token: expected a type specifier`)
     }
 
     private visitArrayIdx(node: ast.ArrayIdx, mutating=false): InternalValue | IndexInfo {
@@ -186,7 +259,7 @@ export default class Interpreter {
         }
         const structFields = this.structs.get(structType) as ast.StructField[]
         this.globalMemory.set(alias, {
-            value: new StructInstance(structType, structFields),
+            value: new StructInstance(alias, structType, structFields),
             type: type
         })
         console.log(this.globalMemory)
@@ -381,8 +454,10 @@ export default class Interpreter {
 
 class StructInstance {
     structType: string
+    firstAlias: string
     members: { [key: string]: InternalValue }
-    constructor(type: string, fields: ast.StructField[]) {
+    constructor(alias: string, type: string, fields: ast.StructField[]) {
+        this.firstAlias = alias
         this.structType = type
         this.members = {}
         for (const field of fields) {

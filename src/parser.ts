@@ -25,18 +25,17 @@ export default class Parser {
         let left
         if (this.currToken.type === TokenType.LET) {
             left = this.varDecl()
-            if (this.currToken.type as TokenType !== TokenType.ASSIGN) {
-                return left
-            }
         }
         else if (this.currToken.type === TokenType.STRUCT) {
             left = this.structDecl()
-            return left
         }
         else {
             left = this.ref()
         }
 
+        if (this.currToken.type as TokenType !== TokenType.ASSIGN) {
+            return left
+        }
         const assignToken = this.currToken
         this.eat(TokenType.ASSIGN)
 
@@ -50,8 +49,14 @@ export default class Parser {
         this.eat(TokenType.ID)
         this.eat(TokenType.L_CURLY)
         const fields: ast.StructField[] = []
+        const fieldNames: Set<string> = new Set()
         while (this.currToken.type !== TokenType.R_CURLY) {
-            fields.push(this.structField())
+            const field = this.structField()
+            if (fieldNames.has(field.name)) {
+                throw new Error("duplicate struct fields")
+            }
+            fields.push(field)
+            fieldNames.add(field.name)
         }
         this.eat(TokenType.R_CURLY)
 
@@ -290,11 +295,26 @@ export default class Parser {
         let ref = this.currToken.type === TokenType.L_BRACK ?
             this.arrayLiteral() : this.variable()
 
-        while (this.currToken.type === TokenType.L_BRACK) {
-            ref = this.idx(ref)
+        while (this.currToken.type === TokenType.L_BRACK ||
+            this.currToken.type === TokenType.DOT) {
+            
+            if (ref instanceof ast.Array && this.currToken.type === TokenType.DOT) {
+                throw new Error(
+                    `syntax error: dot members not present on 
+                    arrays, only struct instances`)
+            }
+            
+            ref = this.currToken.type === TokenType.L_BRACK ? 
+                this.idx(ref) : this.member(ref)
         }
         
         return ref
+    }
+
+    private member(structInstance: ast.AST): ast.AST {
+        this.eat(TokenType.DOT)
+        const fieldNode = this.variable()
+        return new ast.StructMember(fieldNode.token, structInstance)
     }
 
     private idx(array: ast.AST): ast.AST {

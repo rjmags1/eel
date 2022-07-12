@@ -56,3 +56,17 @@ struct s2 {
 
 let s1Instance: struct s1;
 let s2Instance: struct s2;
+s1Instance.f1 = "asdf";
+let str: string = s1Instance.f1;
+s2Instance.f2 = num6;
+s2Instance.f3 = arr1;
+s2Instance.f4 = 101 != num2 && (((100 - 82) ** 0) == 1);
+s2Instance.f5 = s1Instance;
+arr1[0] = s1Instance;
+let arr5: array = [1, 2, [3, s1Instance]];
+let s1Instance2: struct s1 = arr5[2][-1];
+s1Instance2.f1 = "qwert";
+let qwert: string = s1Instance.f1;
+s1Instance.f1 = "qwert2";
+let qwert2: string = s2Instance.f3[0].f1;
+let s2Instance2: struct s2 = s1Instance;
