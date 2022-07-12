@@ -37,6 +37,10 @@ export default class Tokenizer {
                 this.skipWhitespace()
                 continue
             }
+            if (this.currChar === '#') {
+                this.skipComment()
+                continue
+            }
 
             const lineCol: LineCol = this.lineCol()
 
@@ -171,6 +175,12 @@ export default class Tokenizer {
         }
 
         return new Token(TokenType.EOF, null, ...this.lineCol())
+    }
+
+    private skipComment(): void {
+        while (this.currChar !== '\n' && this.currChar !== null) {
+            this.advance()
+        }
     }
 
     private lineCol(): LineCol {

@@ -55,7 +55,8 @@ enum TokenType {
     ID = 'ID',
     EOF = 'EOF',
     BLOCK = 'BLOCK',
-    ROOT = 'ROOT'
+    ROOT = 'ROOT',
+    COMMENT = '#'
 }
 export default TokenType
 

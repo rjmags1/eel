@@ -69,4 +69,4 @@ s1Instance2.f1 = "qwert";
 let qwert: string = s1Instance.f1;
 s1Instance.f1 = "qwert2";
 let qwert2: string = s2Instance.f3[0].f1;
-let s2Instance2: struct s2 = s1Instance;
+# comment
