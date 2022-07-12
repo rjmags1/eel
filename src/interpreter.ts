@@ -13,13 +13,15 @@ type VarInfo = {
     type: Token
 }
 
+type MemoryStack = Map<string, VarInfo>[]
+
 export default class Interpreter {
     parser: Parser
-    globalMemory: Map<string, VarInfo>
+    memoryStack: MemoryStack
     structs: Map<string, ast.StructField[]>
     constructor(parser: Parser) {
         this.parser = parser
-        this.globalMemory = new Map()
+        this.memoryStack = []
         this.structs = new Map()
     }
 
@@ -71,15 +73,41 @@ export default class Interpreter {
         else if (node instanceof ast.StructMember) {
             return this.visitStructMember(node)
         }
-        else if (node instanceof ast.MultiSelection) {
-            return this.visitMultiSelection(node)
-        }
-        else if (node instanceof ast.Selection) {
-            return this.visitSelection(node)
-        }
+        //else if (node instanceof ast.MultiSelection) {
+            //return this.visitMultiSelection(node)
+        //}
+        //else if (node instanceof ast.Selection) {
+            //return this.visitSelection(node)
+        //}
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ this.stringifyLineCol(node) }`)
+    }
+
+    private memoryRetrieve(alias: string): VarInfo | null {
+        for (let level = this.memoryStack.length - 1; level >= 0; level--) {
+            const blockScopeAtLevel = this.memoryStack[level]
+            if (blockScopeAtLevel.has(alias)) {
+                return blockScopeAtLevel.get(alias) as VarInfo
+            }
+        }
+
+        return null
+    }
+
+    private memorySet(alias: string, varInfo: VarInfo, declaring=false): void {
+        const currScopeLevel = this.memoryStack.length - 1
+        if (declaring) {
+            this.memoryStack[currScopeLevel].set(alias, varInfo)
+            return
+        }
+
+        for (let level = currScopeLevel; level >= 0; level--) {
+            const blockScopeAtLevel = this.memoryStack[level]
+            if (blockScopeAtLevel.has(alias)) {
+                blockScopeAtLevel.set(alias, varInfo)
+            }
+        }
     }
 
     private stringifyLineCol(node: ast.AST) {
@@ -94,7 +122,7 @@ export default class Interpreter {
                 ${ this.stringifyLineCol(node)}`)
         }
         if (!(structInstance.members.hasOwnProperty(node.field))) {
-            const internalStructInfo = this.globalMemory.get(
+            const internalStructInfo = this.memoryRetrieve(
                 structInstance.firstAlias) as VarInfo
             throw new Error(
                 `reference error: field ${ node.field } not present on 
@@ -151,9 +179,11 @@ export default class Interpreter {
     }
 
     private visitBlock(node: ast.Block): void {
+        this.memoryStack.push(new Map())
         for (const child of node.children) {
             this.visit(child)
         }
+        this.memoryStack.pop()
     }
 
     private visitAssign(node: ast.Assign): void {
@@ -176,7 +206,7 @@ export default class Interpreter {
                 ${ this.stringifyLineCol(left) }`) 
         }
 
-        const declaredTypeToken = (this.globalMemory.get(alias) as VarInfo).type
+        const declaredTypeToken = (this.memoryRetrieve(alias) as VarInfo).type
         const declaredType = declaredTypeToken.type
         const assignedVal = this.visit(right) as InternalValue
         if (!this.assignedCorrectType(declaredTypeToken, assignedVal, right)) {
@@ -186,15 +216,23 @@ export default class Interpreter {
                 `struct ${ assignedVal.structType }` : typeof assignedVal
             throw new Error(
                 `type error: var ${ alias } of type ${ dType } cannot
-                be assigned value of type ${ aType }, ${ this.stringifyLineCol(left) }`)
+                be assigned value of type ${ aType }, 
+                ${ this.stringifyLineCol(left) }`)
         }
 
-        this.globalMemory.set(alias, { 
+        this.memorySet(alias, { 
             value: assignedVal as InternalValue,
             type: declaredTypeToken
         })
+        this.printMemory()
+    }
 
-        console.log(this.globalMemory)
+    private printMemory(): void {
+        console.log(...this.memoryStack.map(
+            (st, i) => [
+                `level: ${ i } -------------------`, 
+                st
+            ]).reverse())
     }
 
     private assignedCorrectType(
@@ -247,17 +285,21 @@ export default class Interpreter {
     private mutateArray(indexed: ast.ArrayIdx, newValue: ast.AST): void {
         const { array, idx } = this.visitArrayIdx(indexed, true) as IndexInfo
         array[idx] = this.visit(newValue)
-        console.log(this.globalMemory)
+        this.printMemory()
+    }
+
+    private varIsDeclaredInCurrScope(alias: string) {
+        return this.memoryStack[this.memoryStack.length - 1].has(alias)
     }
 
     private visitVarDecl(node: ast.VarDecl): void {
         const { alias, type } = node
-        if (this.varIsDeclared(alias)) {
+        if (this.varIsDeclaredInCurrScope(alias)) {
             throw new Error(`reference error: ${ alias } previously declared,
                 ${ this.stringifyLineCol(node) }`)
         }
         if (type.type !== TokenType.ID) {
-            this.globalMemory.set(alias, { value: undefined, type: type })
+            this.memorySet(alias, { value: undefined, type: type }, true)
             return
         }
 
@@ -267,17 +309,17 @@ export default class Interpreter {
                 ${ this.stringifyLineCol(node) }`)
         }
         const structFields = this.structs.get(structType) as ast.StructField[]
-        this.globalMemory.set(alias, {
+        this.memorySet(alias, {
             value: new StructInstance(alias, structType, structFields),
             type: type
-        })
-        console.log(this.globalMemory)
+        }, true)
+        this.printMemory()
     }
 
     private visitVar(node: ast.Var): InternalValue {
         const alias = node.token.value as string
         if (this.varIsDeclared(alias) && this.varIsDefined(alias)) {
-            const varInfo = this.globalMemory.get(alias) as VarInfo
+            const varInfo = this.memoryRetrieve(alias) as VarInfo
             return varInfo.value as InternalValue
         }
 
@@ -286,11 +328,11 @@ export default class Interpreter {
     }
 
     private varIsDeclared(alias: string): boolean {
-        return this.globalMemory.has(alias)
+        return this.memoryRetrieve(alias) !== null
     }
 
     private varIsDefined(alias: string): boolean {
-        return this.globalMemory.get(alias)?.value !== undefined
+        return this.memoryRetrieve(alias)?.value !== undefined
     }
 
     private visitArray(node: ast.Array): any[] {
