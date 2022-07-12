@@ -72,20 +72,28 @@ export default class Interpreter {
             return this.visitStructMember(node)
         }
 
-        throw new Error('runtime error')
+        throw new Error(`runtime error: unvisitable node in AST: 
+            ${ this.stringifyLineCol(node) }`)
+    }
+
+    private stringifyLineCol(node: ast.AST) {
+        return `line: ${ node.token.line } col: ${ node.token.col }`
     }
 
     private visitStructMember(node: ast.StructMember, mutating=false): InternalValue {
         const structInstance = this.visit(node.structInstance) as StructInstance
         if (!(structInstance instanceof StructInstance)) {
-            throw new Error(`cannot access members of not struct instances`)
+            throw new Error(
+                `invalid attempt to access member of non-struct instance value:
+                ${ this.stringifyLineCol(node)}`)
         }
         if (!(structInstance.members.hasOwnProperty(node.field))) {
             const internalStructInfo = this.globalMemory.get(
                 structInstance.firstAlias) as VarInfo
             throw new Error(
                 `reference error: field ${ node.field } not present on 
-                ${ structInstance } of type struct ${ internalStructInfo.type.type }`)
+                 struct type ${ internalStructInfo.type.value },
+                 ${ this.stringifyLineCol(node) }`)
         }
 
         return mutating ? structInstance : structInstance.members[node.field]
@@ -98,16 +106,16 @@ export default class Interpreter {
         const relevantFieldInfo = fields.filter(f => f.name === left.field)[0]
         const fieldTypeToken = relevantFieldInfo.type
         const visitedNewVal = this.visit(newValue) as InternalValue
-        if (!this.assignedCorrectType(relevantFieldInfo.type, visitedNewVal)) {
+        if (!this.assignedCorrectType(relevantFieldInfo.type, visitedNewVal, newValue)) {
             const fieldType = fieldTypeToken.type
             const dType = fieldTypeToken.type === TokenType.ID ? 
                 `struct ${ fieldTypeToken.value }` : fieldType.toLowerCase()
             const aType = visitedNewVal instanceof StructInstance ?
                 `struct ${ visitedNewVal.structType }` : typeof visitedNewVal
             throw new Error(
-                `type error: declared field of type ${ dType } of ${ left.structInstance }
-                of type struct ${ internalStructInstance.structType } cannot be assigned
-                value of type ${ aType }`)
+                `type error: declared field of type ${ dType } of struct type
+                 ${ internalStructInstance.structType } cannot be assigned
+                value of type ${ aType }, ${ this.stringifyLineCol(newValue)}`)
         }
 
         console.log("before", internalStructInstance)
@@ -117,30 +125,18 @@ export default class Interpreter {
 
     private visitStructDecl(node: ast.StructDecl): void {
         if (this.structs.has(node.name)) {
-            throw new Error(`struct of type ${ node.name } previously declared`)
+            throw new Error(`struct of type ${ node.name } previously declared,
+                ${ this.stringifyLineCol(node) }`)
         }
-        const validFieldTypes = new Set([
-            TokenType.ARRAY,
-            TokenType.STRING,
-            TokenType.NUMBER,
-            TokenType.BOOLEAN,
-            TokenType.ID
-        ])
-        const invalidFieldTypes = node.fields.map(f => f.type).filter(
-            t => !validFieldTypes.has(t.type)).map(t => t.type.toLowerCase())
-        if (invalidFieldTypes.length > 0) {
-            throw new Error(
-                `invalid struct field type(s) ${ invalidFieldTypes } 
-                in declaration of struct ${ node.name }`)
-        }
-        const undeclaredStructFields = node.fields.filter(
-            f => f.type.type === TokenType.ID && 
-                !this.structs.has(f.type.value as string)).map(
-                    f => (f.type.value as string).toLowerCase())
+        const undeclaredStructFields = node.fields.filter(f => (
+                f.type.type === TokenType.ID && 
+                !this.structs.has(f.type.value as string))
+            ).map(f => (f.type.value as string).toLowerCase())
         if (undeclaredStructFields.length > 0) {
             throw new Error(
-                `undeclared struct types ${ undeclaredStructFields } declared 
-                as fields in declaration of struct ${ node.name }`)
+                `undeclared struct type(s) ${ undeclaredStructFields } declared 
+                as fields in declaration of struct ${ node.name },
+                ${ this.stringifyLineCol(node) }`)
         }
 
         this.structs.set(node.name, node.fields)
@@ -170,20 +166,21 @@ export default class Interpreter {
         const alias = declaringAndAssigning ?
             (left as ast.VarDecl).alias : left.token.value as string
         if (!declaringAndAssigning && !this.varIsDeclared(alias)) {
-            throw new Error(`reference error: ${ alias } has not been declared`) 
+            throw new Error(`reference error: ${ alias } has not been declared,
+                ${ this.stringifyLineCol(left) }`) 
         }
 
         const declaredTypeToken = (this.globalMemory.get(alias) as VarInfo).type
         const declaredType = declaredTypeToken.type
         const assignedVal = this.visit(right) as InternalValue
-        if (!this.assignedCorrectType(declaredTypeToken, assignedVal)) {
+        if (!this.assignedCorrectType(declaredTypeToken, assignedVal, right)) {
             const dType = declaredType === TokenType.ID ? 
                 `struct ${ declaredTypeToken.value }` : declaredType.toLowerCase()
             const aType = assignedVal instanceof StructInstance ?
                 `struct ${ assignedVal.structType }` : typeof assignedVal
             throw new Error(
                 `type error: var ${ alias } of type ${ dType } cannot
-                be assigned value of type ${ aType }`)
+                be assigned value of type ${ aType }, ${ this.stringifyLineCol(left) }`)
         }
 
         this.globalMemory.set(alias, { 
@@ -195,7 +192,7 @@ export default class Interpreter {
     }
 
     private assignedCorrectType(
-        declaredTypeToken: Token, assignedVal: InternalValue): boolean {
+        declaredTypeToken: Token, assignedVal: InternalValue, assignedNode: ast.AST): boolean {
         const declaredType = declaredTypeToken.type
         if (assignedVal === null) {
             return true
@@ -217,21 +214,25 @@ export default class Interpreter {
             return typeof assignedVal === 'string'
         }
         
-        throw new Error(`unexpected token: expected a type specifier`)
+        throw new Error(`runtime error while typechecking assignment,
+            ${ this.stringifyLineCol(assignedNode) }`)
     }
 
     private visitArrayIdx(node: ast.ArrayIdx, mutating=false): InternalValue | IndexInfo {
         const array = this.visit(node.array)
         let idx = this.visit(node.idx) as number
         if (!(array instanceof Array)) {
-            throw new Error("index error: cannot index non-array value")
+            throw new Error(`index error: attempted to index non-array value,
+                ${ this.stringifyLineCol(node.array) }`)
         }
         if (!(Number.isInteger(idx))) {
-            throw new Error("index error: non-integer index")
+            throw new Error(`index error: non-integer index, 
+                ${ this.stringifyLineCol(node.idx) }`)
         }
         if (idx < 0) idx += array.length
         if (idx < 0 || idx >= array.length) {
-            throw new Error("index error: out of bounds")
+            throw new Error(`index error: out of bounds, 
+                ${ this.stringifyLineCol(node.idx) }`)
         }
 
         return mutating ? { array, idx } : array[idx]
@@ -246,7 +247,8 @@ export default class Interpreter {
     private visitVarDecl(node: ast.VarDecl): void {
         const { alias, type } = node
         if (this.varIsDeclared(alias)) {
-            throw new Error(`reference error: ${ alias } previously declared`)
+            throw new Error(`reference error: ${ alias } previously declared,
+                ${ this.stringifyLineCol(node) }`)
         }
         if (type.type !== TokenType.ID) {
             this.globalMemory.set(alias, { value: undefined, type: type })
@@ -255,7 +257,8 @@ export default class Interpreter {
 
         const structType = type.value as string
         if (!this.structs.has(structType)) {
-            throw new Error(`struct of type ${ structType } has not been declared`)
+            throw new Error(`struct of type ${ structType } has not been declared,
+                ${ this.stringifyLineCol(node) }`)
         }
         const structFields = this.structs.get(structType) as ast.StructField[]
         this.globalMemory.set(alias, {
@@ -272,7 +275,8 @@ export default class Interpreter {
             return varInfo.value as InternalValue
         }
 
-        throw new Error(`reference error: ${ alias } not defined`)
+        throw new Error(`reference error: ${ alias } not defined,
+            ${ this.stringifyLineCol(node) }`)
     }
 
     private varIsDeclared(alias: string): boolean {
@@ -305,27 +309,27 @@ export default class Interpreter {
 
     private visitUnaryOp(node: ast.UnaryOp): number | boolean {
         const op = node.op.type
-        if (![TokenType.NOT, TokenType.PLUS, TokenType.MINUS].includes(op)) {
-            throw new Error(
-                `invalid unary operator ${ node.op }`)
-        }
 
         const value = this.visit(node.operand)
         if (value === null) {
-            throw new Error(`cannot perform unary ${ op } on a null value`)
+            throw new Error(`cannot perform unary ${ op.toLowerCase() } on a 
+                null value, ${ this.stringifyLineCol(node) }`)
         }
         if (typeof value !== 'number' && op === TokenType.PLUS) {
-            throw new Error("cannot perform unary plus on non-number value")
+            throw new Error(`cannot perform unary plus on non-number value,
+                ${ this.stringifyLineCol(node) }`)
         }
         else if (typeof value !== 'number' && op === TokenType.MINUS) {
             throw new Error(
-                "cannot perform numerical negation on non-number value")
+                `cannot perform unary minus on non-number value,
+                ${ this.stringifyLineCol(node) }`)
         }
 
         if (op === TokenType.NOT) {
             if (typeof value !== 'boolean') {
                 throw new Error(
-                    "cannot perform logical negation on non-boolean value")
+                    `cannot perform logical negation on non-boolean value,
+                    ${ this.stringifyLineCol(node) }`)
             }
             
             return !value
@@ -342,7 +346,8 @@ export default class Interpreter {
         if ((left === null || right === null) &&
             ![TokenType.EQUAL, TokenType.NOT_EQUAL].includes(op)) {
             throw new Error(
-                `cannot perform op ${ node.op.value } on null values`)
+                `cannot perform op ${ node.op.value } on null values
+                ${ this.stringifyLineCol(node) }`)
         }
 
         if (typeof left === 'number' && typeof right === 'number') {
@@ -434,8 +439,8 @@ export default class Interpreter {
         }
 
         throw new Error(
-            `cannot perform ${ op.toLowerCase() } on operands of type 
-            ${ typeof left } and ${ typeof right }`)
+            `cannot perform ${ node.op.value } on operands of type 
+            ${ typeof left } and ${ typeof right }, ${ this.stringifyLineCol(node) }`)
     }
 
     private arrayEqual(left: any[], right: any[]): boolean {

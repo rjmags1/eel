@@ -110,8 +110,8 @@ export class Assign extends AST {
 export class Block extends AST {
     children: AST[]
     root: boolean
-    constructor(root=false) {
-        super(new Token(TokenType.BLOCK, null))
+    constructor(token: Token, root=false) {
+        super(token)
         this.root = root
         this.children = []
     }

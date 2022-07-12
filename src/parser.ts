@@ -12,7 +12,8 @@ export default class Parser {
     }
 
     buildAST(): ast.Block {
-        const root = new ast.Block(true) // root=true
+        const rootToken = new Token(TokenType.ROOT, 'root', 0, 0)
+        const root = new ast.Block(rootToken, true) // root=true
         while (this.currToken.type != TokenType.EOF) {
             root.children.push(this.varDeclareAssign())
             this.eat(TokenType.SEMI)
@@ -42,18 +43,26 @@ export default class Parser {
         return new ast.Assign(left, assignToken, this.expr())
     }
 
+    private stringifyLineCol(token: Token): string {
+        const { line, col } = token
+        return `line: ${ line } col: ${ col }`
+    }
+
     private structDecl(): ast.StructDecl {
         const declaratorToken = this.currToken
         this.eat(TokenType.STRUCT)
         const structName = this.currToken.value as string
         this.eat(TokenType.ID)
+        const openingCurlyToken = this.currToken
         this.eat(TokenType.L_CURLY)
         const fields: ast.StructField[] = []
         const fieldNames: Set<string> = new Set()
         while (this.currToken.type !== TokenType.R_CURLY) {
+            const fieldToken = this.currToken
             const field = this.structField()
             if (fieldNames.has(field.name)) {
-                throw new Error("duplicate struct fields")
+                throw new Error(
+                    `duplicate struct fields: ${ this.stringifyLineCol(fieldToken) }`)
             }
             fields.push(field)
             fieldNames.add(field.name)
@@ -61,7 +70,8 @@ export default class Parser {
         this.eat(TokenType.R_CURLY)
 
         if (fields.length === 0) {
-            throw new Error("empty structs not allowed")
+            throw new Error( `empty structs not allowed: 
+                ${ this.stringifyLineCol(openingCurlyToken)}`)
         }
 
         return new ast.StructDecl(declaratorToken, structName, fields)
@@ -110,7 +120,8 @@ export default class Parser {
             return structType
         }
         else {
-            throw new Error('unexpected token - expected a type specifier')
+            throw new Error(`unexpected token - expected a type specifier:
+                ${ this.stringifyLineCol(token) }`)
         }
 
         return token
@@ -288,7 +299,7 @@ export default class Parser {
             return this.ref()
         }
 
-        throw new Error("unexpected primary token")
+        throw new Error(`unexpected token: ${ this.stringifyLineCol(token) }`)
     }
 
     private ref(): ast.AST {
@@ -300,8 +311,8 @@ export default class Parser {
             
             if (ref instanceof ast.Array && this.currToken.type === TokenType.DOT) {
                 throw new Error(
-                    `syntax error: dot members not present on 
-                    arrays, only struct instances`)
+                    `syntax error: dot notation can only access members of struct instances,
+                    ${ this.stringifyLineCol(this.currToken) }`)
             }
             
             ref = this.currToken.type === TokenType.L_BRACK ? 
@@ -325,6 +336,7 @@ export default class Parser {
     }
 
     private arrayLiteral(): ast.AST {
+        const { line, col } = this.currToken
         this.eat(TokenType.L_BRACK)
         const elems = []
         while (this.currToken.type !== TokenType.R_BRACK) {
@@ -337,7 +349,7 @@ export default class Parser {
         }
         this.eat(TokenType.R_BRACK)
 
-        const arrayToken = new Token(TokenType.ARRAY_CONST, elems)
+        const arrayToken = new Token(TokenType.ARRAY_CONST, elems, line, col)
         return new ast.Array(arrayToken)
     }
 
@@ -348,15 +360,14 @@ export default class Parser {
     }
 
     private eat(tokenType: TokenType): void {
-        console.log(tokenType, this.currToken)
+        //console.log(tokenType, this.currToken)
         if (this.currToken.type === tokenType) {
             this.currToken = this.nextToken()
             return
         }
 
         throw new Error(
-            `invalid syntax: line ${ this.tokenizer.line } 
-            col ${ this.tokenizer.col }`)
+            `invalid syntax: ${ this.stringifyLineCol(this.currToken) }`)
     }
 
     private nextToken(): Token {

@@ -5,12 +5,17 @@ export type TokenValue = number | null | string | boolean | any[]
 export class Token {
     type: TokenType
     value: TokenValue
-    constructor(type: TokenType, value: TokenValue) {
+    line: number
+    col: number
+    constructor(type: TokenType, value: TokenValue, line: number, col: number) {
         this.type = type
         this.value = value
+        this.line = line
+        this.col = col
     }
 }
 
+type LineCol = [line: number, col: number]
 
 export default class Tokenizer {
     line: number
@@ -33,140 +38,146 @@ export default class Tokenizer {
                 continue
             }
 
+            const lineCol: LineCol = this.lineCol()
+
             if (this.currChar === '(') {
                 this.advance()
-                return new Token(TokenType.L_PAREN, '(')
+                return new Token(TokenType.L_PAREN, '(', ...lineCol)
             }
             if (this.currChar === ')') {
                 this.advance()
-                return new Token(TokenType.R_PAREN, ')')
+                return new Token(TokenType.R_PAREN, ')', ...lineCol)
             }
             if (this.currChar === '+') {
                 this.advance()
-                return new Token(TokenType.PLUS, '+')
+                return new Token(TokenType.PLUS, '+', ...lineCol)
             }
             if (this.currChar === '-') {
                 this.advance()
-                return new Token(TokenType.MINUS, '-')
+                return new Token(TokenType.MINUS, '-', ...lineCol)
             }
             if (this.currChar === '/' && this.nextChar() === '/') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.FLOOR, '//')
+                return new Token(TokenType.FLOOR, '//', ...lineCol)
             }
             if (this.currChar === '/') {
                 this.advance()
-                return new Token(TokenType.DIV, '/')
+                return new Token(TokenType.DIV, '/', ...lineCol)
             }
             if (this.currChar === '%') {
                 this.advance()
-                return new Token(TokenType.MOD, '%')
+                return new Token(TokenType.MOD, '%', ...lineCol)
             }
             if (this.currChar === '*' && this.nextChar() === '*') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.EXPONENT, '**')
+                return new Token(TokenType.EXPONENT, '**', ...lineCol)
             }
             if (this.currChar === '*') {
                 this.advance()
-                return new Token(TokenType.MUL, '*')
+                return new Token(TokenType.MUL, '*', ...lineCol)
             }
             if (this.currChar === ':') {
                 this.advance()
-                return new Token(TokenType.COLON, ':')
+                return new Token(TokenType.COLON, ':', ...lineCol)
             }
             if (this.currChar === ';') {
                 this.advance()
-                return new Token(TokenType.SEMI, ';')
+                return new Token(TokenType.SEMI, ';', ...lineCol)
             }
             if (this.currChar === '=' && this.nextChar() === '=') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.EQUAL, '==')
+                return new Token(TokenType.EQUAL, '==', ...lineCol)
             }
             if (this.currChar === '=') {
                 this.advance()
-                return new Token(TokenType.ASSIGN, '=')
+                return new Token(TokenType.ASSIGN, '=', ...lineCol)
             }
             if (this.currChar === '!' && this.nextChar() === '=') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.NOT_EQUAL, '!=')
+                return new Token(TokenType.NOT_EQUAL, '!=', ...lineCol)
             }
             if (this.currChar === '!') {
                 this.advance()
-                return new Token(TokenType.NOT, '!')
+                return new Token(TokenType.NOT, '!', ...lineCol)
             }
             if (this.currChar === '[') {
                 this.advance()
-                return new Token(TokenType.L_BRACK, '[')
+                return new Token(TokenType.L_BRACK, '[', ...lineCol)
             }
             if (this.currChar === ']') {
                 this.advance()
-                return new Token(TokenType.R_BRACK, ']')
+                return new Token(TokenType.R_BRACK, ']', ...lineCol)
             }
             if (this.currChar === ',') {
                 this.advance()
-                return new Token(TokenType.COMMA, ',')
+                return new Token(TokenType.COMMA, ',', ...lineCol)
             }
             if (this.currChar === '<' && this.nextChar() === '=') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.LTE, '<=')
+                return new Token(TokenType.LTE, '<=', ...lineCol)
             }
             if (this.currChar === '<') {
                 this.advance()
-                return new Token(TokenType.LT, '<')
+                return new Token(TokenType.LT, '<', ...lineCol)
             }
             if (this.currChar === '>' && this.nextChar() === '=') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.GTE, '>=')
+                return new Token(TokenType.GTE, '>=', ...lineCol)
             }
             if (this.currChar === '>') {
                 this.advance()
-                return new Token(TokenType.GT, '>')
+                return new Token(TokenType.GT, '>', ...lineCol)
             }
             if (this.currChar === '&' && this.nextChar() === '&') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.LOGICAL_AND, '&&')
+                return new Token(TokenType.LOGICAL_AND, '&&', ...lineCol)
             }
             if (this.currChar === '|' && this.nextChar() === '|') {
                 this.advance()
                 this.advance()
-                return new Token(TokenType.LOGICAL_OR, '||')
-            }
-            if (this.currChar === "'" || this.currChar === '"') {
-                return this.stringToken()
+                return new Token(TokenType.LOGICAL_OR, '||', ...lineCol)
             }
             if (this.currChar === '{') {
                 this.advance()
-                return new Token(TokenType.L_CURLY, '{')
+                return new Token(TokenType.L_CURLY, '{', ...lineCol)
             }
             if (this.currChar === '}') {
                 this.advance()
-                return new Token(TokenType.R_CURLY, '}')
+                return new Token(TokenType.R_CURLY, '}', ...lineCol)
             }
             if (this.currChar === '.') {
                 this.advance()
-                return new Token(TokenType.DOT, '.')
+                return new Token(TokenType.DOT, '.', ...lineCol)
+            }
+            if (this.currChar === "'" || this.currChar === '"') {
+                return this.stringToken(...lineCol)
             }
             if (this.currCharIsDigit()) {
-                return this.numberToken()
+                return this.numberToken(...lineCol)
             }
             if (this.currCharIsAlpha()) {
-                const keywordToken = this.foundKeyword()
-                return keywordToken === null ? this.idToken() : keywordToken
+                const keywordToken = this.foundKeyword(...lineCol)
+                return keywordToken === null ? this.idToken(...lineCol) : keywordToken
             }
 
             throw new Error(`invalid character: line ${ this.line } col ${ this.col }`)
         }
 
-        return new Token(TokenType.EOF, null)
+        return new Token(TokenType.EOF, null, ...this.lineCol())
     }
 
-    private foundKeyword(): Token | null {
+    private lineCol(): LineCol {
+        return [this.line, this.col]
+    }
+
+    private foundKeyword(line: number, col: number): Token | null {
         type TokenTypeString = keyof typeof TokenType
 
         for (const [type, keyword] of Object.entries(KEYWORDS)) {
@@ -175,14 +186,14 @@ export default class Tokenizer {
             const delimited = (
                 !this.isAlpha(this.text[stop]) && !this.isDigit(this.text[stop]))
             if (keyword === keywordLenSliceFromText && delimited) {
-                return this.keywordToken(TokenType[type as TokenTypeString])
+                return this.keywordToken(TokenType[type as TokenTypeString], line, col)
             }
         }
 
         return null
     }
 
-    private keywordToken(keywordTokenType: TokenType): Token {
+    private keywordToken(keywordTokenType: TokenType, line: number, col: number): Token {
         const keyword = this.word()
         let tokenValue: string | boolean | null = keyword
         if (keyword === 'true') {
@@ -195,12 +206,12 @@ export default class Tokenizer {
             tokenValue = null
         }
 
-        return new Token(keywordTokenType, tokenValue)
+        return new Token(keywordTokenType, tokenValue, line, col)
     }
 
-    private idToken(): Token {
+    private idToken(line: number, col: number): Token {
         const alias = this.word()
-        return new Token(TokenType.ID, alias)
+        return new Token(TokenType.ID, alias, line, col)
     }
 
     private word(): string {
@@ -225,7 +236,7 @@ export default class Tokenizer {
         return char >= '0' && char <= '9'
     }
 
-    private numberToken(): Token {
+    private numberToken(line: number, col: number): Token {
         const digits = []
         while (this.currCharIsDigit()) {
             digits.push(this.currChar)
@@ -242,10 +253,10 @@ export default class Tokenizer {
         }
 
         const value = Number(digits.join(""))
-        return new Token(TokenType.NUMBER_CONST, value)
+        return new Token(TokenType.NUMBER_CONST, value, line, col)
     }
 
-    private stringToken(): Token {
+    private stringToken(line: number, col: number): Token {
         const quote = this.currChar
         this.advance()
 
@@ -257,7 +268,7 @@ export default class Tokenizer {
         this.advance()
 
         const str = chars.join("")
-        return new Token(TokenType.STRING_CONST, str)
+        return new Token(TokenType.STRING_CONST, str, line, col)
     }
 
     private currCharIsDigit(): boolean {
@@ -282,7 +293,7 @@ export default class Tokenizer {
 
         if (this.text[this.idx] === '\n') {
             this.line++
-            this.col = 0
+            this.col = -1
         }
         this.currChar = this.text[this.idx]
         this.col++

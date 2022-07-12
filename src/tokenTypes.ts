@@ -54,7 +54,8 @@ enum TokenType {
     ARRAY_CONST = 'ARRAY_CONST',
     ID = 'ID',
     EOF = 'EOF',
-    BLOCK = 'BLOCK'
+    BLOCK = 'BLOCK',
+    ROOT = 'ROOT'
 }
 export default TokenType
 
