@@ -53,3 +53,6 @@ struct s2 {
     f4: bool,
     f5: struct s1,
 };
+
+let s1Instance: struct s1;
+let s2Instance: struct s2;

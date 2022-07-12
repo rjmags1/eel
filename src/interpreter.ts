@@ -4,7 +4,7 @@ import TokenType from "./tokenTypes"
 import { Token } from "./tokenizer"
 
 
-type InternalValue = number | boolean | string | null | any[] 
+type InternalValue = number | boolean | string | null | any[] | StructInstance
 
 type IndexInfo = { array: any[], idx: number }
 
@@ -175,8 +175,21 @@ export default class Interpreter {
         if (this.varIsDeclared(alias)) {
             throw new Error(`reference error: ${ alias } previously declared`)
         }
+        if (type.type !== TokenType.ID) {
+            this.globalMemory.set(alias, { value: undefined, type: type })
+            return
+        }
 
-        this.globalMemory.set(alias, { value: undefined, type: type })
+        const structType = type.value as string
+        if (!this.structs.has(structType)) {
+            throw new Error(`struct of type ${ structType } has not been declared`)
+        }
+        const structFields = this.structs.get(structType) as ast.StructField[]
+        this.globalMemory.set(alias, {
+            value: new StructInstance(structType, structFields),
+            type: type
+        })
+        console.log(this.globalMemory)
     }
 
     private visitVar(node: ast.Var): InternalValue {
@@ -363,5 +376,17 @@ export default class Interpreter {
         }
 
         return l === r
+    }
+}
+
+class StructInstance {
+    structType: string
+    members: { [key: string]: InternalValue }
+    constructor(type: string, fields: ast.StructField[]) {
+        this.structType = type
+        this.members = {}
+        for (const field of fields) {
+            this.members[field.name] = null
+        }
     }
 }
