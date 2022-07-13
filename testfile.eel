@@ -70,3 +70,23 @@ let qwert: string = s1Instance.f1;
 s1Instance.f1 = "qwert2";
 let qwert2: string = s2Instance.f3[0].f1;
 # comment
+
+if (num1 > 100) { }
+else {
+    let num2: number = 9000;
+    num2 = 8004;
+}
+
+if (num1 < 100) {
+    num2 = 9000;
+}
+
+if (false) {
+    num1 = false;
+}
+else if (true) {
+    bool7 = null;
+}
+else {
+    bool7 = true;
+}

@@ -73,15 +73,31 @@ export default class Interpreter {
         else if (node instanceof ast.StructMember) {
             return this.visitStructMember(node)
         }
-        //else if (node instanceof ast.MultiSelection) {
-            //return this.visitMultiSelection(node)
-        //}
-        //else if (node instanceof ast.Selection) {
-            //return this.visitSelection(node)
-        //}
+        else if (node instanceof ast.MultiSelection) {
+            return this.visitMultiSelection(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ this.stringifyLineCol(node) }`)
+    }
+
+    private visitMultiSelection(node: ast.MultiSelection): void {
+        for (const selection of node.selections) {
+            const { condition, block } = selection
+            const visitedCondition = this.visit(condition)
+            if (typeof visitedCondition !== 'boolean') {
+                throw new Error(`non boolean expression in conditional 
+                    statement:  ${ this.stringifyLineCol(selection) }`)
+            }
+            if (visitedCondition) {
+                this.visitBlock(block)
+                return
+            }
+        }
+
+        if (node.default !== null) {
+            this.visit(node.default)
+        }
     }
 
     private memoryRetrieve(alias: string): VarInfo | null {
@@ -106,6 +122,7 @@ export default class Interpreter {
             const blockScopeAtLevel = this.memoryStack[level]
             if (blockScopeAtLevel.has(alias)) {
                 blockScopeAtLevel.set(alias, varInfo)
+                return
             }
         }
     }
@@ -228,11 +245,14 @@ export default class Interpreter {
     }
 
     private printMemory(): void {
+        console.log("===============================")
         console.log(...this.memoryStack.map(
             (st, i) => [
-                `level: ${ i } -------------------`, 
+                `level: ${ i }`, 
+                `-------------------`,
                 st
             ]).reverse())
+        console.log("===============================")
     }
 
     private assignedCorrectType(
