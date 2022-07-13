@@ -40,13 +40,15 @@ enum TokenType {
     IF = 'IF',
     ELSE = 'ELSE',
     //FOR = 'FOR',
-    //WHILE = 'WHILE',
+    WHILE = 'WHILE',
     LET = 'LET',
     //RETURN = 'RETURN',
     //FUNCTION = 'FUNCTION',
     TRUE = 'TRUE',
     FALSE = 'FALSE',
     STRUCT = 'STRUCT',
+    BREAK = 'BREAK',
+    CONTINUE = 'CONTINUE',
 
     // misc
     NUMBER_CONST = 'NUMBER_CONST',
@@ -71,11 +73,13 @@ export const KEYWORDS = {
     IF: 'if', 
     ELSE: 'else', 
     //FOR: 'for', 
-    //WHILE: 'while',
+    WHILE: 'while',
     TRUE: 'true', 
     FALSE: 'false',
     LET: 'let', 
     //FUNCTION: 'function', 
     STRUCT: 'struct', 
-    //RETURN: 'return'
+    //RETURN: 'return',
+    BREAK: 'break',
+    CONTINUE: 'continue',
 }

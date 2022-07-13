@@ -90,3 +90,15 @@ else if (true) {
 else {
     bool7 = true;
 }
+
+let iters: number = 0;
+while ("a" < "b") {
+    iters = iters + 1;
+    num1 = num1 + 2;
+    if (num1 < 12) {
+        continue;
+    }
+    else {
+        break;
+    }
+}

@@ -76,9 +76,15 @@ export default class Interpreter {
         else if (node instanceof ast.MultiSelection) {
             return this.visitMultiSelection(node)
         }
+        else if (node instanceof ast.WhileLoop) {
+            return this.visitWhileLoop(node)
+        }
+        else if (node instanceof ast.IterControl) {
+            return this.visitIterControl(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
-            ${ this.stringifyLineCol(node) }`)
+            ${ node } generated at ${ this.stringifyLineCol(node) }`)
     }
 
     private visitMultiSelection(node: ast.MultiSelection): void {
@@ -198,9 +204,47 @@ export default class Interpreter {
     private visitBlock(node: ast.Block): void {
         this.memoryStack.push(new Map())
         for (const child of node.children) {
-            this.visit(child)
+            try {
+                this.visit(child)
+            }
+            catch (e) {
+                if (e instanceof IterationBlockInterrupt) {
+                    this.memoryStack.pop()
+                }
+                throw e
+            }
         }
         this.memoryStack.pop()
+    }
+
+    private visitIterControl(node: ast.IterControl): void {
+        throw new IterationBlockInterrupt(node.keyword)
+    }
+
+    private visitWhileLoop(node: ast.WhileLoop): void {
+        const { condition, block } = node
+        while (1) {
+            const conditionStatus = this.visit(condition)
+            if (typeof conditionStatus !== 'boolean') {
+                throw new Error(`non boolean expression in while loop condition,
+                    ${ this.stringifyLineCol(node) }`)
+            }
+            if (!conditionStatus) return
+
+            try {
+                this.visit(block)
+            }
+            catch (e) {
+                if (e instanceof IterationBlockInterrupt) {
+                    if (e.keyword === 'continue') {
+                        continue
+                    }
+                    else {
+                        return
+                    }
+                }
+            }
+        }
     }
 
     private visitAssign(node: ast.Assign): void {
@@ -536,5 +580,13 @@ class StructInstance {
         for (const field of fields) {
             this.members[field.name] = null
         }
+    }
+}
+
+class IterationBlockInterrupt extends Error {
+    keyword: 'continue' | 'break'
+    constructor(keyword: 'continue' | 'break') {
+        super()
+        this.keyword = keyword
     }
 }

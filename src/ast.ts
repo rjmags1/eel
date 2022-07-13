@@ -165,3 +165,21 @@ export class Selection extends AST {
         this.block = block
     }
 }
+
+export class WhileLoop extends AST {
+    condition: AST
+    block: Block
+    constructor(whileToken: Token, condition: AST, block: Block) {
+        super(whileToken)
+        this.condition = condition
+        this.block = block
+    }
+}
+
+export class IterControl extends AST {
+    keyword: 'continue' | 'break'
+    constructor(token: Token) {
+        super(token)
+        this.keyword = this.token.value as 'continue' | 'break'
+    }
+}

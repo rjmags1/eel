@@ -2,6 +2,10 @@ import Tokenizer, { Token } from "./tokenizer"
 import TokenType from "./tokenTypes"
 import * as ast from "./ast"
 
+type StatementInfo = {
+    topLevel?: boolean,
+    inIterBlock?: boolean
+}
 
 export default class Parser {
     tokenizer: Tokenizer
@@ -14,57 +18,96 @@ export default class Parser {
     buildAST(): ast.Block {
         const rootToken = new Token(TokenType.ROOT, 'root', 0, 0)
         const root = new ast.Block(rootToken, true) // root=true
-        while (this.currToken.type != TokenType.EOF) {
-            root.children.push(this.statement(true)) // topLevel=true
+        while (this.currToken.type !== TokenType.EOF) {
+            root.children.push(this.statement({ topLevel: true })) // topLevel=true
         }
 
         return root
     }
 
-    private block(): ast.Block {
+    private block(iterBlock=false): ast.Block {
         const block = new ast.Block(this.currToken)
         this.eat(TokenType.L_CURLY)
         while (this.currToken.type !== TokenType.R_CURLY) {
-            block.children.push(this.statement())
+            block.children.push(this.statement({ inIterBlock: iterBlock }))
         }
         this.eat(TokenType.R_CURLY)
 
         return block
     }
 
-    private statement(topLevel=false): ast.AST {
+    private statement({ 
+        topLevel=false, 
+        inIterBlock=false 
+    }: StatementInfo = {}): ast.AST {
         if (this.currToken.type === TokenType.IF) {
-            return this.multiSelection()
+            return this.multiSelection(inIterBlock)
+        }
+        else if (this.currToken.type === TokenType.CONTINUE) {
+            return this.iterControl(inIterBlock)
+        }
+        else if (this.currToken.type === TokenType.BREAK) {
+            return this.iterControl(inIterBlock)
+        }
+        else if (this.currToken.type === TokenType.WHILE) {
+            return this.whileLoop()
         }
         else {
             return this.varDeclareAssign(topLevel)
         }
     }
 
-    private multiSelection(): ast.MultiSelection {
+    private whileLoop(): ast.WhileLoop {
+        const whileToken = this.currToken
+        this.eat(TokenType.WHILE)
+        this.eat(TokenType.L_PAREN)
+        const condition = this.expr()
+        this.eat(TokenType.R_PAREN)
+        return new ast.WhileLoop(whileToken, condition, this.block(true))
+    }
+
+    private iterControl(inIterBlock: boolean): ast.IterControl {
+        if (!inIterBlock) {
+            throw new Error(`illegal ${ this.currToken.value } statement 
+                outside of iteration block, 
+                ${ this.stringifyLineCol(this.currToken) }`)
+        }
+        const controlNode = new ast.IterControl(this.currToken)
+        if (this.currToken.type === TokenType.CONTINUE) {
+            this.eat(TokenType.CONTINUE)
+        }
+        else {
+            this.eat(TokenType.BREAK)
+        }
+        this.eat(TokenType.SEMI)
+
+        return controlNode
+    }
+
+    private multiSelection(inIterBlock=false): ast.MultiSelection {
         const ifToken = this.currToken
-        const selections: ast.Selection[] = [this.selection()]
+        const selections: ast.Selection[] = [this.selection(inIterBlock)]
         let defaultBlock: ast.Block | null = null
         while (this.currToken.type === TokenType.ELSE) {
             this.eat(TokenType.ELSE)
             if (this.currToken.type as TokenType === TokenType.L_CURLY) {
-                defaultBlock = this.block()
+                defaultBlock = this.block(inIterBlock)
                 break
             }
 
-            selections.push(this.selection())
+            selections.push(this.selection(inIterBlock))
         }
 
         return new ast.MultiSelection(ifToken, selections, defaultBlock)
     }
 
-    private selection(): ast.Selection {
+    private selection(inIterBlock=false): ast.Selection {
         const ifToken = this.currToken
         this.eat(TokenType.IF)
         this.eat(TokenType.L_PAREN)
         const condition = this.expr()
         this.eat(TokenType.R_PAREN)
-        return new ast.Selection(ifToken, condition, this.block())
+        return new ast.Selection(ifToken, condition, this.block(inIterBlock))
     }
 
     private varDeclareAssign(topLevel: boolean): ast.AST {
