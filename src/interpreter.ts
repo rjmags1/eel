@@ -13,6 +13,12 @@ type VarInfo = {
     type: Token
 }
 
+type IterVarInfo = {
+    count: number
+    name: string
+    counterToken: Token
+}
+
 type MemoryStack = Map<string, VarInfo>[]
 
 export default class Interpreter {
@@ -82,6 +88,9 @@ export default class Interpreter {
         else if (node instanceof ast.IterControl) {
             return this.visitIterControl(node)
         }
+        else if (node instanceof ast.ForLoop) {
+            return this.visitForLoop(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ node } generated at ${ this.stringifyLineCol(node) }`)
@@ -117,9 +126,9 @@ export default class Interpreter {
         return null
     }
 
-    private memorySet(alias: string, varInfo: VarInfo, declaring=false): void {
+    private memorySet(alias: string, varInfo: VarInfo, currScope=false): void {
         const currScopeLevel = this.memoryStack.length - 1
-        if (declaring) {
+        if (currScope) {
             this.memoryStack[currScopeLevel].set(alias, varInfo)
             return
         }
@@ -201,8 +210,14 @@ export default class Interpreter {
             (f: ast.StructField) => [f.name, '->', f.type]))
     }
 
-    private visitBlock(node: ast.Block): void {
+    private visitBlock(node: ast.Block, iterVarInfo: IterVarInfo | null = null): void {
         this.memoryStack.push(new Map())
+        if (iterVarInfo !== null) {
+            this.memorySet(iterVarInfo.name, {
+                value: iterVarInfo.count,
+                type: iterVarInfo.counterToken
+            }, true)
+        }
         for (const child of node.children) {
             try {
                 this.visit(child)
@@ -219,6 +234,42 @@ export default class Interpreter {
 
     private visitIterControl(node: ast.IterControl): void {
         throw new IterationBlockInterrupt(node.keyword)
+    }
+
+    private visitForLoop(node: ast.ForLoop): void {
+        const { start, stop, block, iterVar } = node
+        const visitedStart = this.visit(start) as number
+        const visitedStop = this.visit(stop) as number
+        if ([visitedStart, visitedStop].some(bound => !Number.isInteger(bound))) {
+            throw new Error(`non integer for loop bound, 
+                ${ this.stringifyLineCol(node)}`)
+        }
+        let counter = visitedStart
+        const counterToken = new Token(
+            TokenType.NUMBER_CONST, 
+            visitedStart, 
+            iterVar.token.line, 
+            iterVar.token.col
+        )
+        while (counter < visitedStop) {
+            try {
+                this.visitBlock(block, { 
+                    count: counter++, 
+                    name: iterVar.token.value as string, 
+                    counterToken 
+                })
+            }
+            catch (e) {
+                if (e instanceof IterationBlockInterrupt) {
+                    if (e.keyword === 'continue') {
+                        continue
+                    }
+                    else {
+                        return
+                    }
+                }
+            }
+        }
     }
 
     private visitWhileLoop(node: ast.WhileLoop): void {

@@ -176,6 +176,20 @@ export class WhileLoop extends AST {
     }
 }
 
+export class ForLoop extends AST {
+    start: AST
+    stop: AST
+    block: Block
+    iterVar: AST
+    constructor(forToken: Token, iterVar: AST, start: AST, stop: AST, block: Block) {
+        super(forToken)
+        this.start = start
+        this.stop = stop
+        this.block = block
+        this.iterVar = iterVar
+    }
+}
+
 export class IterControl extends AST {
     keyword: 'continue' | 'break'
     constructor(token: Token) {

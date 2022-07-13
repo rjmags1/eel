@@ -102,3 +102,9 @@ while ("a" < "b") {
         break;
     }
 }
+
+let inclusiveStop: number = 3;
+for i in [0, inclusiveStop] {
+    let num: number = i;
+    let elem: number = arr4[i];
+}

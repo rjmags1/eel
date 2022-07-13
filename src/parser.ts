@@ -52,9 +52,25 @@ export default class Parser {
         else if (this.currToken.type === TokenType.WHILE) {
             return this.whileLoop()
         }
+        else if (this.currToken.type === TokenType.FOR) {
+            return this.forLoop()
+        }
         else {
             return this.varDeclareAssign(topLevel)
         }
+    }
+
+    private forLoop(): ast.ForLoop {
+        const forToken = this.currToken
+        this.eat(TokenType.FOR)
+        const iterVar = this.variable()
+        this.eat(TokenType.IN)
+        this.eat(TokenType.L_BRACK)
+        const start = this.expr()
+        this.eat(TokenType.COMMA)
+        const stop = this.expr()
+        this.eat(TokenType.R_BRACK)
+        return new ast.ForLoop(forToken, iterVar, start, stop, this.block(true))
     }
 
     private whileLoop(): ast.WhileLoop {

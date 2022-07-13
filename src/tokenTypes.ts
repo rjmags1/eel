@@ -39,7 +39,7 @@ enum TokenType {
     //VOID = 'VOID',
     IF = 'IF',
     ELSE = 'ELSE',
-    //FOR = 'FOR',
+    FOR = 'FOR',
     WHILE = 'WHILE',
     LET = 'LET',
     //RETURN = 'RETURN',
@@ -49,6 +49,7 @@ enum TokenType {
     STRUCT = 'STRUCT',
     BREAK = 'BREAK',
     CONTINUE = 'CONTINUE',
+    IN = 'IN',
 
     // misc
     NUMBER_CONST = 'NUMBER_CONST',
@@ -72,7 +73,7 @@ export const KEYWORDS = {
     //VOID: 'void', 
     IF: 'if', 
     ELSE: 'else', 
-    //FOR: 'for', 
+    FOR: 'for', 
     WHILE: 'while',
     TRUE: 'true', 
     FALSE: 'false',
@@ -82,4 +83,5 @@ export const KEYWORDS = {
     //RETURN: 'return',
     BREAK: 'break',
     CONTINUE: 'continue',
+    IN: 'in'
 }
