@@ -1,6 +1,7 @@
 import Tokenizer, { Token } from "./tokenizer"
 import TokenType from "./tokenTypes"
 import * as ast from "./ast"
+import { textChangeRangeIsUnchanged } from "typescript"
 
 type StatementInfo = {
     topLevel?: boolean,
@@ -55,9 +56,44 @@ export default class Parser {
         else if (this.currToken.type === TokenType.FOR) {
             return this.forLoop()
         }
+        else if (this.currToken.type === TokenType.FUNCTION) {
+            return this.functionDecl(topLevel)
+        }
         else {
             return this.varDeclareAssign(topLevel)
         }
+    }
+
+    private functionDecl(topLevel: boolean): ast.FunctionDecl {
+        if (!topLevel) {
+            throw new Error("illegal non-top level function declaration")
+        }
+
+        const fnToken = this.currToken
+        this.eat(TokenType.FUNCTION)
+        const nameToken = this.currToken
+        this.eat(TokenType.ID)
+        this.eat(TokenType.L_PAREN)
+        const params = this.params()
+        this.eat(TokenType.R_PAREN)
+        this.eat(TokenType.COLON)
+        return new ast.FunctionDecl(
+            fnToken, nameToken, params, this.returnSpecifier(), this.block())
+    }
+
+    private params(): ast.Param[] {
+        const params: ast.Param[] = []
+        while (this.currToken.type !== TokenType.R_PAREN) {
+            const nameToken = this.currToken
+            this.eat(TokenType.ID)
+            this.eat(TokenType.COLON)
+            params.push(new ast.Param(nameToken, this.typeSpecifier()))
+            if (this.currToken.type as TokenType !== TokenType.R_PAREN) {
+                this.eat(TokenType.COMMA)
+            }
+        }
+
+        return params
     }
 
     private forLoop(): ast.ForLoop {
@@ -206,6 +242,20 @@ export default class Parser {
         this.eat(TokenType.COLON)
 
         return new ast.VarDecl(declaratorToken, alias, this.typeSpecifier())
+    }
+
+    private returnSpecifier(): Token {
+        try {
+            return this.typeSpecifier()
+        }
+        catch (e) {
+            if (this.currToken.type === TokenType.VOID) {
+                const voidToken = this.currToken
+                this.eat(TokenType.VOID)
+                return voidToken
+            }
+            throw e
+        }
     }
 
     private typeSpecifier(): Token {

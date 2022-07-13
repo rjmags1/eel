@@ -108,3 +108,7 @@ for i in [0, inclusiveStop] {
     let num: number = i;
     let elem: number = arr4[i];
 }
+
+fn testFunction(p1: number, p2: string): void {
+    p1 = 14;
+}

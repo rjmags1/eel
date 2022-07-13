@@ -25,10 +25,12 @@ export default class Interpreter {
     parser: Parser
     memoryStack: MemoryStack
     structs: Map<string, ast.StructField[]>
+    functions: Map<string, ast.FunctionDecl>
     constructor(parser: Parser) {
         this.parser = parser
         this.memoryStack = []
         this.structs = new Map()
+        this.functions = new Map()
     }
 
     interpret(): void {
@@ -91,9 +93,37 @@ export default class Interpreter {
         else if (node instanceof ast.ForLoop) {
             return this.visitForLoop(node)
         }
+        else if (node instanceof ast.FunctionDecl) {
+            return this.visitFunctionDecl(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ node } generated at ${ this.stringifyLineCol(node) }`)
+    }
+
+    private visitFunctionDecl(node: ast.FunctionDecl): void {
+        const fnName = node.name.value as string
+        if (this.functions.has(fnName) || this.varIsDeclared((fnName))) {
+            throw new Error(`${ fnName } previously declared`)
+        }
+
+        const undeclaredStructTypeParams = node.params.filter(p => (
+            p.type.type === TokenType.ID && 
+            !this.structs.has(p.type.value as string))
+        )
+        if (undeclaredStructTypeParams.length > 0) {
+            const undeclaredStructNames = undeclaredStructTypeParams.map(
+                p => p.type.value)
+            throw new Error(
+                `invalid function param(s) of undeclared struct type(s) 
+                ${ undeclaredStructNames }, ${ this.stringifyLineCol(node) }`)
+        }
+
+        this.functions.set(fnName, node)
+        console.log(
+            "FUNCTIONS ---------------------", 
+            this.functions,
+            "-------------------------")
     }
 
     private visitMultiSelection(node: ast.MultiSelection): void {

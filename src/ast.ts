@@ -197,3 +197,37 @@ export class IterControl extends AST {
         this.keyword = this.token.value as 'continue' | 'break'
     }
 }
+
+export class FunctionDecl extends AST {
+    name: Token
+    params: Param[]
+    body: Block
+    returnType: Token
+    constructor(fnToken: Token, name: Token, params: Param[], returnType: Token, body: Block) {
+        super(fnToken)
+        this.name = name
+        this.params = params
+        this.body = body
+        this.returnType = returnType
+    }
+}
+
+export class Param extends AST {
+    name: Token
+    type: Token
+    constructor(name: Token, type: Token) {
+        super(name)
+        this.name = name
+        this.type = type
+    }
+}
+
+export class FunctionCall extends AST {
+    called: AST
+    args: AST[]
+    constructor(called: AST, args: AST[]) {
+        super(called.token)
+        this.called = called
+        this.args = args
+    }
+}
