@@ -1,11 +1,11 @@
 import Tokenizer, { Token } from "./tokenizer"
 import TokenType from "./tokenTypes"
 import * as ast from "./ast"
-import { textChangeRangeIsUnchanged } from "typescript"
 
 type StatementInfo = {
     topLevel?: boolean,
-    inIterBlock?: boolean
+    inIterBlock?: boolean,
+    inFunctionBlock?: boolean
 }
 
 export default class Parser {
@@ -26,11 +26,12 @@ export default class Parser {
         return root
     }
 
-    private block(iterBlock=false): ast.Block {
+    private block(iterBlock: boolean, functionBlock: boolean): ast.Block {
         const block = new ast.Block(this.currToken)
         this.eat(TokenType.L_CURLY)
         while (this.currToken.type !== TokenType.R_CURLY) {
-            block.children.push(this.statement({ inIterBlock: iterBlock }))
+            block.children.push(this.statement({ 
+                inIterBlock: iterBlock, inFunctionBlock: functionBlock }))
         }
         this.eat(TokenType.R_CURLY)
 
@@ -39,32 +40,33 @@ export default class Parser {
 
     private statement({ 
         topLevel=false, 
-        inIterBlock=false 
+        inIterBlock=false,
+        inFunctionBlock=false 
     }: StatementInfo = {}): ast.AST {
         if (this.currToken.type === TokenType.IF) {
-            return this.multiSelection(inIterBlock)
+            return this.multiSelection({ inIterBlock, inFunctionBlock })
         }
         else if (this.currToken.type === TokenType.CONTINUE) {
-            return this.iterControl(inIterBlock)
+            return this.iterControl({ inIterBlock })
         }
         else if (this.currToken.type === TokenType.BREAK) {
-            return this.iterControl(inIterBlock)
+            return this.iterControl({ inIterBlock })
         }
         else if (this.currToken.type === TokenType.WHILE) {
-            return this.whileLoop()
+            return this.whileLoop({ inFunctionBlock, inIterBlock: true })
         }
         else if (this.currToken.type === TokenType.FOR) {
-            return this.forLoop()
+            return this.forLoop({ inFunctionBlock, inIterBlock: true })
         }
         else if (this.currToken.type === TokenType.FUNCTION) {
-            return this.functionDecl(topLevel)
+            return this.functionDecl({ topLevel })
         }
         else {
-            return this.varDeclareAssign(topLevel)
+            return this.declareAssign({ topLevel })
         }
     }
 
-    private functionDecl(topLevel: boolean): ast.FunctionDecl {
+    private functionDecl({ topLevel=false }: StatementInfo): ast.FunctionDecl {
         if (!topLevel) {
             throw new Error("illegal non-top level function declaration")
         }
@@ -78,7 +80,7 @@ export default class Parser {
         this.eat(TokenType.R_PAREN)
         this.eat(TokenType.COLON)
         return new ast.FunctionDecl(
-            fnToken, nameToken, params, this.returnSpecifier(), this.block())
+            fnToken, nameToken, params, this.returnSpecifier(), this.block(false, true))
     }
 
     private params(): ast.Param[] {
@@ -96,7 +98,7 @@ export default class Parser {
         return params
     }
 
-    private forLoop(): ast.ForLoop {
+    private forLoop({ inFunctionBlock=false }: StatementInfo): ast.ForLoop {
         const forToken = this.currToken
         this.eat(TokenType.FOR)
         const iterVar = this.variable()
@@ -106,19 +108,19 @@ export default class Parser {
         this.eat(TokenType.COMMA)
         const stop = this.expr()
         this.eat(TokenType.R_BRACK)
-        return new ast.ForLoop(forToken, iterVar, start, stop, this.block(true))
+        return new ast.ForLoop(forToken, iterVar, start, stop, this.block(true, inFunctionBlock))
     }
 
-    private whileLoop(): ast.WhileLoop {
+    private whileLoop({ inFunctionBlock=false }: StatementInfo): ast.WhileLoop {
         const whileToken = this.currToken
         this.eat(TokenType.WHILE)
         this.eat(TokenType.L_PAREN)
         const condition = this.expr()
         this.eat(TokenType.R_PAREN)
-        return new ast.WhileLoop(whileToken, condition, this.block(true))
+        return new ast.WhileLoop(whileToken, condition, this.block(true, inFunctionBlock))
     }
 
-    private iterControl(inIterBlock: boolean): ast.IterControl {
+    private iterControl({ inIterBlock }: StatementInfo): ast.IterControl {
         if (!inIterBlock) {
             throw new Error(`illegal ${ this.currToken.value } statement 
                 outside of iteration block, 
@@ -136,33 +138,39 @@ export default class Parser {
         return controlNode
     }
 
-    private multiSelection(inIterBlock=false): ast.MultiSelection {
+    private multiSelection({ 
+        inIterBlock=false, 
+        inFunctionBlock=false 
+    }: StatementInfo): ast.MultiSelection {
         const ifToken = this.currToken
-        const selections: ast.Selection[] = [this.selection(inIterBlock)]
+        const selections: ast.Selection[] = [this.selection({ inIterBlock, inFunctionBlock })]
         let defaultBlock: ast.Block | null = null
         while (this.currToken.type === TokenType.ELSE) {
             this.eat(TokenType.ELSE)
             if (this.currToken.type as TokenType === TokenType.L_CURLY) {
-                defaultBlock = this.block(inIterBlock)
+                defaultBlock = this.block(inIterBlock, inFunctionBlock)
                 break
             }
 
-            selections.push(this.selection(inIterBlock))
+            selections.push(this.selection({ inIterBlock, inFunctionBlock }))
         }
 
         return new ast.MultiSelection(ifToken, selections, defaultBlock)
     }
 
-    private selection(inIterBlock=false): ast.Selection {
+    private selection({ 
+        inIterBlock=false, 
+        inFunctionBlock=false 
+    }: StatementInfo): ast.Selection {
         const ifToken = this.currToken
         this.eat(TokenType.IF)
         this.eat(TokenType.L_PAREN)
         const condition = this.expr()
         this.eat(TokenType.R_PAREN)
-        return new ast.Selection(ifToken, condition, this.block(inIterBlock))
+        return new ast.Selection(ifToken, condition, this.block(inIterBlock, inFunctionBlock))
     }
 
-    private varDeclareAssign(topLevel: boolean): ast.AST {
+    private declareAssign({ topLevel }: StatementInfo): ast.AST {
         if (this.currToken.type === TokenType.STRUCT) {
             if (!topLevel) {
                 throw new Error(`syntax error: illegal non top level struct 
