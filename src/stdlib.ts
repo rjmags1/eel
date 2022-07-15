@@ -1,7 +1,7 @@
 import { InternalValue, StructInstance, VoidReturn } from "./interpreter"
 
 const stdlib: { [key: string]: Function } = {
-    print: (...args: InternalValue[]) => {
+    print: (...args: InternalValue[]): void => {
         for (const arg of args) {
             if (arg instanceof StructInstance) {
                 console.log(arg.structType, arg.members)
@@ -12,13 +12,19 @@ const stdlib: { [key: string]: Function } = {
             else console.log(arg)
         }
     },
-    len: (array: InternalValue[]) => {
+    len: (array: InternalValue[]): number => {
         if (!(array instanceof Array)) {
             throw new Error(`cannot call len on non-array value`)
         }
         return array.length
     },
-    members: (structInstance: StructInstance) => {
+    append: (array: InternalValue[], val: InternalValue): void => {
+        if (!(array instanceof Array)) {
+            throw new Error(`cannot call append on non-array value`)
+        }
+        array.push(val)
+    },
+    members: (structInstance: StructInstance): any[][] => {
         if (!(structInstance instanceof StructInstance)) {
             throw new Error(`cannot call members on non-struct type value`)
         }

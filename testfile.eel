@@ -119,4 +119,6 @@ fn testFunction(p1: number, p2: string): array {
 }
 
 print(print(4));
-print(members(s2Instance)[0], len(s2Instance.f2));
+#print(members(s2Instance)[0], len(s2Instance.f2)); # throw invalid len call error
+append(arr1, 777);
+print(arr1);
