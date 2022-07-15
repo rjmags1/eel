@@ -2,9 +2,10 @@ import Parser from "./parser"
 import * as ast from "./ast"
 import TokenType from "./tokenTypes"
 import { Token } from "./tokenizer"
+import stdlib from "./stdlib"
 
 
-type InternalValue = number | boolean | string | null | any[] | StructInstance | VoidReturn
+export type InternalValue = number | boolean | string | null | any[] | StructInstance | VoidReturn
 
 type IndexInfo = { array: any[], idx: number }
 
@@ -107,9 +108,23 @@ export default class Interpreter {
         else if (node instanceof ast.Return) {
             return this.visitReturn(node)
         }
+        else if (node instanceof ast.StdLibCall) {
+            return this.visitStdLibCall(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ node } generated at ${ this.stringifyLineCol(node) }`)
+    }
+
+    private visitStdLibCall(node: ast.StdLibCall): InternalValue | void {
+        const visitedArgs = node.args.map(arg => this.visit(arg))
+        try {
+            return stdlib[node.name](...visitedArgs)
+        }
+        catch (e) {
+            throw new Error((e as Error).message + 
+                `, ${ this.stringifyLineCol(node) }`)
+        }
     }
 
     private visitFunctionCall(node: ast.FunctionCall): InternalValue | void {
@@ -190,10 +205,10 @@ export default class Interpreter {
         }
 
         this.functions.set(fnName, node)
-        console.log(
-            "FUNCTIONS ---------------------", 
-            this.functions,
-            "-------------------------")
+        //console.log(
+            //"FUNCTIONS ---------------------", 
+            //this.functions,
+            //"-------------------------")
     }
 
     private visitMultiSelection(node: ast.MultiSelection): void {
@@ -284,9 +299,9 @@ export default class Interpreter {
                 value of type ${ aType }, ${ this.stringifyLineCol(newValue)}`)
         }
 
-        console.log("before", internalStructInstance)
+        //console.log("before", internalStructInstance)
         internalStructInstance.members[left.field] = visitedNewVal
-        console.log("after", internalStructInstance)
+        //console.log("after", internalStructInstance)
     }
 
     private visitStructDecl(node: ast.StructDecl): void {
@@ -306,8 +321,8 @@ export default class Interpreter {
         }
 
         this.structs.set(node.name, node.fields)
-        console.log(node.name, ':', (this.structs.get(node.name) as any).map(
-            (f: ast.StructField) => [f.name, '->', f.type]))
+        //console.log(node.name, ':', (this.structs.get(node.name) as any).map(
+            //(f: ast.StructField) => [f.name, '->', f.type]))
     }
 
     private visitBlock(
@@ -447,7 +462,7 @@ export default class Interpreter {
             value: assignedVal as InternalValue,
             type: declaredTypeToken
         })
-        this.printMemory()
+        //this.printMemory()
     }
 
     private printMemory(): void {
@@ -492,7 +507,7 @@ export default class Interpreter {
         const array = this.visit(node.array)
         let idx = this.visit(node.idx) as number
         if (!(array instanceof Array)) {
-            console.log(array, idx, node)
+            //console.log(array, idx, node)
             throw new Error(`index error: attempted to index non-array value,
                 ${ this.stringifyLineCol(node.array) }`)
         }
@@ -512,7 +527,7 @@ export default class Interpreter {
     private mutateArray(indexed: ast.ArrayIdx, newValue: ast.AST): void {
         const { array, idx } = this.visitArrayIdx(indexed, true) as IndexInfo
         array[idx] = this.visit(newValue)
-        this.printMemory()
+        //this.printMemory()
     }
 
     private varIsDeclaredInCurrScope(alias: string) {
@@ -540,7 +555,7 @@ export default class Interpreter {
             value: new StructInstance(alias, structType, structFields),
             type: type
         }, true)
-        this.printMemory()
+        //this.printMemory()
     }
 
     private visitVar(node: ast.Var): InternalValue {
@@ -732,7 +747,7 @@ export default class Interpreter {
     }
 }
 
-class StructInstance {
+export class StructInstance {
     structType: string
     firstAlias: string
     members: { [key: string]: InternalValue }
@@ -746,7 +761,7 @@ class StructInstance {
     }
 }
 
-class VoidReturn { }
+export class VoidReturn { }
 
 class IterationBlockInterrupt extends Error {
     keyword: 'continue' | 'break'

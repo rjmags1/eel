@@ -1,6 +1,7 @@
 import Tokenizer, { Token } from "./tokenizer"
 import TokenType from "./tokenTypes"
 import * as ast from "./ast"
+import stdlib from "./stdlib"
 
 type StatementInfo = {
     topLevel?: boolean,
@@ -66,8 +67,9 @@ export default class Parser {
         else if (this.currToken.type === TokenType.RETURN) {
             return this.return({ inFunctionBlock })
         }
-        else if (this.currToken.type === TokenType.ID &&
-            this.fnNames.has(this.currToken.value as string)) {
+        else if (this.currToken.type === TokenType.ID && (
+                    this.fnNames.has(this.currToken.value as string) ||
+                    stdlib.hasOwnProperty(this.currToken.value as string))) {
             return this.functionCall(this.variable(), true)
         }
         else {
@@ -503,19 +505,24 @@ export default class Parser {
                 throw new Error(`array literals are not callable, 
                     ${ this.stringifyLineCol(this.currToken) }`)
             }
-            return this.functionCall(ref)
+            ref = this.functionCall(ref)
         }
-        else {
-            return this.element(ref)
-        }
+
+        return this.element(ref)
     }
 
     private functionCall(fnRef: ast.AST, statementCall=false) {
-        const call = new ast.FunctionCall(fnRef, this.args())
+        const call = stdlib.hasOwnProperty(fnRef.token.value as string) ? 
+            this.stdLibCall(fnRef.token) : new ast.FunctionCall(fnRef, this.args()) 
         if (statementCall) {
             this.eat(TokenType.SEMI)
         }
         return call
+    }
+
+    private stdLibCall(calledToken: Token): ast.StdLibCall {
+        const callNode = new ast.StdLibCall(calledToken, this.args())
+        return callNode
     }
 
     private args(): ast.AST[] {

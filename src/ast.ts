@@ -239,3 +239,13 @@ export class Return extends AST {
         this.returned = returned
     }
 }
+
+export class StdLibCall extends AST {
+    name: string
+    args: AST[]
+    constructor(called: Token, args: AST[]) {
+        super(called)
+        this.name = called.value as string
+        this.args = args
+    }
+}
