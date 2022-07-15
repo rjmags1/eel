@@ -4,7 +4,7 @@ import TokenType from "./tokenTypes"
 import { Token } from "./tokenizer"
 
 
-type InternalValue = number | boolean | string | null | any[] | StructInstance
+type InternalValue = number | boolean | string | null | any[] | StructInstance | VoidReturn
 
 type IndexInfo = { array: any[], idx: number }
 
@@ -17,6 +17,11 @@ type IterVarInfo = {
     count: number
     name: string
     counterToken: Token
+}
+
+type ScopeInjection = {
+    iterVarInfo?: IterVarInfo,
+    argsMap?: Map<string, VarInfo>
 }
 
 type MemoryStack = Map<string, VarInfo>[]
@@ -96,9 +101,74 @@ export default class Interpreter {
         else if (node instanceof ast.FunctionDecl) {
             return this.visitFunctionDecl(node)
         }
+        else if (node instanceof ast.FunctionCall) {
+            return this.visitFunctionCall(node)
+        }
+        else if (node instanceof ast.Return) {
+            return this.visitReturn(node)
+        }
 
         throw new Error(`runtime error: unvisitable node in AST: 
             ${ node } generated at ${ this.stringifyLineCol(node) }`)
+    }
+
+    private visitFunctionCall(node: ast.FunctionCall): InternalValue | void {
+        const { called, args } = node
+        if (!this.functions.has(called)) {
+            throw new Error(`attempted to call undeclared function ${ called },
+                ${ this.stringifyLineCol(node) }`)
+        }
+
+        const calledDeclNode = this.functions.get(called) as ast.FunctionDecl
+        const { params, body: functionBody } = calledDeclNode
+        if (params.length !== args.length) {
+            throw new Error(`calls to ${ called } expect 
+                ${ params.length } args but ${ args.length }
+                were provided, ${ this.stringifyLineCol(node) }`)
+        }
+
+        const visitedArgs = args.map(arg => this.visit(arg))
+        const argsMap: Map<string, VarInfo> = new Map()
+        for (let i = 0; i < visitedArgs.length; i++) {
+            const visitedArg = visitedArgs[i] as InternalValue
+            const paramTypeToken = params[i].type
+            if (!this.assignedCorrectType(paramTypeToken, visitedArg, args[i])) {
+                const dType = paramTypeToken.type === TokenType.ID ? 
+                    `struct ${ paramTypeToken.value }` : 
+                    paramTypeToken.type.toLowerCase()
+                const aType = visitedArg instanceof StructInstance ?
+                    `struct ${ visitedArg.structType }` : typeof visitedArg
+                throw new Error(
+                    `type error: declared param ${ params[i].name } of type  
+                    ${ dType } cannot be assigned value of type ${ aType }, 
+                    ${ this.stringifyLineCol(args[i])}`)
+            }
+
+            argsMap.set(params[i].name as string, {
+                value: visitedArg,
+                type: params[i].type
+            })
+        }
+        
+        try {
+            this.visitBlock(functionBody, { argsMap })
+            return new VoidReturn()
+        }
+        catch (e) {
+            if (e instanceof FunctionReturnInterrupt) {
+                return e.returnValue
+            }
+            throw e
+        }
+    }
+
+    private visitReturn(node: ast.Return): void {
+        if (node instanceof Token && node.type === TokenType.VOID) {
+            throw new FunctionReturnInterrupt(new VoidReturn())
+        }
+
+        const retNode = node.returned as ast.AST
+        throw new FunctionReturnInterrupt(this.visit(retNode) as InternalValue)
     }
 
     private visitFunctionDecl(node: ast.FunctionDecl): void {
@@ -240,20 +310,28 @@ export default class Interpreter {
             (f: ast.StructField) => [f.name, '->', f.type]))
     }
 
-    private visitBlock(node: ast.Block, iterVarInfo: IterVarInfo | null = null): void {
+    private visitBlock(
+        node: ast.Block, 
+        { iterVarInfo, argsMap }: ScopeInjection = {}
+    ): void {
         this.memoryStack.push(new Map())
-        if (iterVarInfo !== null) {
+        if (iterVarInfo) {
             this.memorySet(iterVarInfo.name, {
                 value: iterVarInfo.count,
                 type: iterVarInfo.counterToken
             }, true)
+        }
+        if (argsMap) {
+            argsMap.forEach(
+                (varInfo, param) => this.memorySet(param, varInfo, true))
         }
         for (const child of node.children) {
             try {
                 this.visit(child)
             }
             catch (e) {
-                if (e instanceof IterationBlockInterrupt) {
+                if (e instanceof IterationBlockInterrupt ||
+                    e instanceof FunctionReturnInterrupt) {
                     this.memoryStack.pop()
                 }
                 throw e
@@ -281,13 +359,14 @@ export default class Interpreter {
             iterVar.token.line, 
             iterVar.token.col
         )
-        while (counter < visitedStop) {
+        while (counter <= visitedStop) {
+            const iterVarInfo = { 
+                count: counter++,
+                name: iterVar.token.value as string, 
+                counterToken
+            }
             try {
-                this.visitBlock(block, { 
-                    count: counter++, 
-                    name: iterVar.token.value as string, 
-                    counterToken 
-                })
+                this.visitBlock(block, { iterVarInfo })
             }
             catch (e) {
                 if (e instanceof IterationBlockInterrupt) {
@@ -298,6 +377,7 @@ export default class Interpreter {
                         return
                     }
                 }
+                throw e
             }
         }
     }
@@ -324,6 +404,7 @@ export default class Interpreter {
                         return
                     }
                 }
+                throw e
             }
         }
     }
@@ -411,6 +492,7 @@ export default class Interpreter {
         const array = this.visit(node.array)
         let idx = this.visit(node.idx) as number
         if (!(array instanceof Array)) {
+            console.log(array, idx, node)
             throw new Error(`index error: attempted to index non-array value,
                 ${ this.stringifyLineCol(node.array) }`)
         }
@@ -468,7 +550,7 @@ export default class Interpreter {
             return varInfo.value as InternalValue
         }
 
-        throw new Error(`reference error: ${ alias } not defined,
+        throw new Error(`reference error: variable ${ alias } not defined,
             ${ this.stringifyLineCol(node) }`)
     }
 
@@ -664,10 +746,20 @@ class StructInstance {
     }
 }
 
+class VoidReturn { }
+
 class IterationBlockInterrupt extends Error {
     keyword: 'continue' | 'break'
     constructor(keyword: 'continue' | 'break') {
         super()
         this.keyword = keyword
+    }
+}
+
+class FunctionReturnInterrupt extends Error {
+    returnValue: InternalValue
+    constructor(returnValue: InternalValue) {
+        super()
+        this.returnValue = returnValue
     }
 }

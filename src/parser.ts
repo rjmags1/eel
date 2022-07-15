@@ -11,9 +11,11 @@ type StatementInfo = {
 export default class Parser {
     tokenizer: Tokenizer
     currToken: Token
+    fnNames: Set<string>
     constructor(tokenizer: Tokenizer) {
         this.tokenizer = tokenizer
         this.currToken = this.nextToken()
+        this.fnNames = new Set()
     }
 
     buildAST(): ast.Block {
@@ -61,9 +63,31 @@ export default class Parser {
         else if (this.currToken.type === TokenType.FUNCTION) {
             return this.functionDecl({ topLevel })
         }
+        else if (this.currToken.type === TokenType.RETURN) {
+            return this.return({ inFunctionBlock })
+        }
+        else if (this.currToken.type === TokenType.ID &&
+            this.fnNames.has(this.currToken.value as string)) {
+            return this.functionCall(this.variable(), true)
+        }
         else {
             return this.declareAssign({ topLevel })
         }
+    }
+
+    private return({ inFunctionBlock }: StatementInfo): ast.Return {
+        const returnToken = this.currToken
+        if (!inFunctionBlock) {
+            throw new Error(`illegal return statement outside of function block,
+                ${ this.stringifyLineCol(returnToken) }`)
+        }
+
+        this.eat(TokenType.RETURN)
+        const returnNode = new ast.Return(
+            this.currToken.type === TokenType.SEMI ? 
+                new Token(TokenType.VOID, 'void', 0, 0) : this.ref())
+        this.eat(TokenType.SEMI)
+        return returnNode
     }
 
     private functionDecl({ topLevel=false }: StatementInfo): ast.FunctionDecl {
@@ -74,6 +98,7 @@ export default class Parser {
         const fnToken = this.currToken
         this.eat(TokenType.FUNCTION)
         const nameToken = this.currToken
+        this.fnNames.add(nameToken.value as string)
         this.eat(TokenType.ID)
         this.eat(TokenType.L_PAREN)
         const params = this.params()
@@ -473,6 +498,42 @@ export default class Parser {
         let ref = this.currToken.type === TokenType.L_BRACK ?
             this.arrayLiteral() : this.variable()
 
+        if (this.currToken.type === TokenType.L_PAREN) {
+            if (ref instanceof ast.Array) {
+                throw new Error(`array literals are not callable, 
+                    ${ this.stringifyLineCol(this.currToken) }`)
+            }
+            return this.functionCall(ref)
+        }
+        else {
+            return this.element(ref)
+        }
+    }
+
+    private functionCall(fnRef: ast.AST, statementCall=false) {
+        const call = new ast.FunctionCall(fnRef, this.args())
+        if (statementCall) {
+            this.eat(TokenType.SEMI)
+        }
+        return call
+    }
+
+    private args(): ast.AST[] {
+        this.eat(TokenType.L_PAREN)
+        const args: ast.AST[] = []
+        while (this.currToken.type !== TokenType.R_PAREN) {
+            args.push(this.expr())
+            if (this.currToken.type as TokenType !== TokenType.R_PAREN) {
+                this.eat(TokenType.COMMA)
+            }
+        }
+        this.eat(TokenType.R_PAREN)
+
+        return args
+    }
+
+    private element(collection: ast.AST): ast.AST {
+        let ref = collection
         while (this.currToken.type === TokenType.L_BRACK ||
             this.currToken.type === TokenType.DOT) {
             

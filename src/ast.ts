@@ -213,21 +213,29 @@ export class FunctionDecl extends AST {
 }
 
 export class Param extends AST {
-    name: Token
+    name: string
     type: Token
     constructor(name: Token, type: Token) {
         super(name)
-        this.name = name
+        this.name = name.value as string
         this.type = type
     }
 }
 
 export class FunctionCall extends AST {
-    called: AST
+    called: string
     args: AST[]
-    constructor(called: AST, args: AST[]) {
-        super(called.token)
-        this.called = called
+    constructor(calledNode: AST, args: AST[]) {
+        super(calledNode.token)
+        this.called = calledNode.token.value as string
         this.args = args
+    }
+}
+
+export class Return extends AST {
+    returned: AST | Token
+    constructor(returned: AST | Token) {
+        super(returned instanceof AST ? returned.token : returned)
+        this.returned = returned
     }
 }
