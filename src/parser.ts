@@ -87,7 +87,7 @@ export default class Parser {
         this.eat(TokenType.RETURN)
         const returnNode = new ast.Return(
             this.currToken.type === TokenType.SEMI ? 
-                new Token(TokenType.VOID, 'void', 0, 0) : this.ref())
+                new Token(TokenType.VOID, 'void', 0, 0) : this.expr())
         this.eat(TokenType.SEMI)
         return returnNode
     }
