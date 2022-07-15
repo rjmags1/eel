@@ -1,7 +1,7 @@
 {
   "name": "eel",
   "version": "1.0.0",
-  "description": "interpreted language written in javascript",
+  "description": "interpreted language written in typescript",
   "main": "index.js",
   "scripts": {
     "test": "npx tsc && node ./dist/index.js testfile.eel"
