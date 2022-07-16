@@ -127,6 +127,13 @@ export default class Interpreter {
         }
     }
 
+    private checkStdlibCollision(node: ast.AST, alias: string): void {
+        if (stdlib.hasOwnProperty(alias)) {
+            throw new Error(`${ alias } has a name collision with a stdlib function,
+                ${ this.stringifyLineCol(node) }`)
+        }
+    }
+
     private visitFunctionCall(node: ast.FunctionCall): InternalValue | void {
         const { called, args } = node
         if (!this.functions.has(called)) {
@@ -188,6 +195,7 @@ export default class Interpreter {
 
     private visitFunctionDecl(node: ast.FunctionDecl): void {
         const fnName = node.name.value as string
+        this.checkStdlibCollision(node, fnName)
         if (this.functions.has(fnName) || this.varIsDeclared((fnName))) {
             throw new Error(`${ fnName } previously declared`)
         }
@@ -536,6 +544,7 @@ export default class Interpreter {
 
     private visitVarDecl(node: ast.VarDecl): void {
         const { alias, type } = node
+        this.checkStdlibCollision(node, alias)
         if (this.varIsDeclaredInCurrScope(alias)) {
             throw new Error(`reference error: ${ alias } previously declared,
                 ${ this.stringifyLineCol(node) }`)
