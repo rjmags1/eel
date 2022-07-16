@@ -11,7 +11,7 @@ Clone the repo:
 ```$ git clone https://github.com/rjmags1/eel.git```
 
 Compile eel source and execute a .eel file using NodeJS runtime:
-```$ npm run exec fib.eel```
+```$ npm run exec examples/fib.eel```
 
 Skip the compilation step (after you have run exec at least once):
-```$ node dist/index.js [pathtofile.eel]```
+```$ node dist/index.js examples/bingo.eel```
