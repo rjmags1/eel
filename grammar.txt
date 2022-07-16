@@ -1,0 +1,47 @@
+// expression refs
+ref             : element
+element         : (variable | ARRAY_CONST | functionCall) (idx | member)*
+member          : DOT variable
+idx             : L_BRACK term R_BRACK
+variable        : ID
+
+
+// expressions
+expr            : equality ((LOGICAL_AND | LOGICAL_OR) equality)*
+equality        : compare ((NOT_EQUAL | EQUAL) compare)*
+compare         : term ((LT | GT | GTE | LTE) term)*
+term            : factor ((PLUS | MINUS) factor)*
+factor          : unary ((DIV | MUL | FLOOR | MOD) unary)*
+exponent        : factor (EXPONENT factor)*
+unary           : (PLUS | MINUS | NOT) exponent | primary
+primary         : NUMBER_CONST | TRUE | FALSE | L_PAREN expr R_PAREN 
+                    | ref | NULL | STRING_CONST | ARRAY_CONST
+
+
+// types
+returnSpec      : typeSpec | VOID
+typeSpec        : NUMBER | STRING | BOOLEAN | ARRAY | STRUCT ID
+
+
+// declarations
+varDecl         : LET ID COLON typeSpec SEMI
+structDecl      : STRUCT ID L_CURLY (structField)+ R_CURLY SEMI
+structField     : ID COLON typeSpec COMMA
+functionDecl    : FUNCTION ID L_PAREN (param)* R_PAREN COLON returnSpec block
+param           : ID COLON typeSpec COMMA
+
+
+// statements
+block           : L_CURLY (statement)* R_CURLY
+statement       : assignment | multiSelection | declaration
+                    | iterControl | callStatement | return | while | for
+callStatement   : functionCall SEMI
+return          : RETURN (expr)? SEMI
+functionCall    : variable L_PAREN (expr)* R_PAREN
+declaration     : varDecl | structDecl | functionDecl
+assignment      : (varDecl | ref) ASSIGN expr SEMI
+multiSelection  : selection (ELSE selection)* (ELSE block)?
+selection       : IF L_PAREN expr R_PAREN block
+while           : WHILE L_PAREN expr R_PAREN block
+iterControl     : (BREAK | CONTINUE) SEMI
+for             : FOR variable IN L_BRACK expr COMMA expr R_BRACK block
