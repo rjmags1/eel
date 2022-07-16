@@ -1,0 +1,125 @@
+struct board {
+    player: string,
+    numbers: array,
+    matches: array
+};
+
+struct game {
+    boards: array,
+    winner: struct board
+};
+
+fn initGame(players: array): struct board {
+    let boards: array = [];
+    for person in [0, len(players) - 1] {
+        let currBoard: struct board;
+        currBoard.player = players[person];
+
+        let numbers: array = [];
+        let matches: array = [];
+        for i in [0, 4] {
+            append(numbers, []);
+            append(matches, []);
+            for j in [0, 4] {
+                append(numbers[i], rand() * 101 // 1);
+                append(matches[i], false);
+            }
+        }
+        currBoard.numbers = numbers;
+        currBoard.matches = matches;
+
+        append(boards, currBoard);
+    }
+
+    let theGame: struct game;
+    theGame.boards = boards;
+    return theGame;
+}
+
+fn markBoard(board: struct board, pickedNumber: number): void {
+    for i in [0, 4] {
+        for j in [0, 4] {
+            if (board.numbers[i][j] == pickedNumber) {
+                board.matches[i][j] = true;
+            }
+        }
+    }
+}
+
+fn checkForWin(board: struct board): bool {
+    let badRC: bool = false;
+    for i in [0, 4] {
+        for j in [0, 4] {
+            if (!board.matches[i][j]) {
+                badRC = true;
+                break;
+            }
+        }
+        if (!badRC) { return true; }
+        badRC = false;
+    }
+    for j in [0, 4] {
+        for i in [0, 4] {
+            if (!board.matches[i][j]) {
+                badRC = true;
+                break;
+            }
+        }
+        if (!badRC) { return true; }
+        badRC = false;
+    }
+
+    let diagMatches: number = 0;
+    for k in [0, 4] {
+        if (!board.matches[k][k]) {
+            break;
+        }
+        diagMatches = diagMatches + 1;
+    }
+    if (diagMatches == 5) { return true; }
+    
+    diagMatches = 0;
+    for k in [0, 4] {
+        if (!board.matches[0][4 - k]) {
+            break;
+        }
+        diagMatches = diagMatches + 1;
+    }
+    return diagMatches == 5;
+}
+
+let pickedNumbers: array = [];
+fn playGame(game: struct game): void {
+    while (game.winner == null) {
+        let pickedNumber: number = rand() * 101 // 1;
+        append(pickedNumbers, pickedNumber);
+        for i in [0, len(game.boards) - 1] {
+            let currBoard: struct board = game.boards[i];
+            markBoard(currBoard, pickedNumber);
+            if (checkForWin(currBoard)) {
+                game.winner = currBoard;
+                return;
+            }
+        }
+    }
+}
+
+let players: array = [
+    "Jerry", 
+    "Aditya", 
+    "Bombquisha", 
+    "Dominic", 
+    "Tom", 
+    "Jezelle", 
+    "Gaurav", 
+    "Kevin", 
+    "Tina", 
+    "Martino"
+];
+let theGame: struct game = initGame(players);
+playGame(theGame);
+
+print("all picked numbers: ", pickedNumbers);
+print(theGame.winner.player, " won");
+print(theGame.winner.numbers);
+print(theGame.winner.matches);

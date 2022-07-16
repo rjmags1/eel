@@ -4,7 +4,7 @@
   "description": "interpreted language written in typescript",
   "main": "index.js",
   "scripts": {
-    "test": "npx tsc && node ./dist/index.js testfile.eel",
+    "test": "npx tsc && node ./dist/index.js ./examples/testfile.eel",
     "exec": "npx tsc && node ./dist/index.js"
   },
   "repository": {

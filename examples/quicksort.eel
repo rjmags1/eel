@@ -1,0 +1,44 @@
+fn swap(arr: array, i: number, j: number): void {
+    let temp: number = arr[i];
+    arr[i] = arr[j];
+    arr[j] = temp;
+}
+
+fn qsHelper(arr: array, start: number, stop: number): void {
+    if (start >= stop) {
+        return;
+    }
+
+    let pivot: number = start;
+    let left: number = start + 1;
+    let right: number = stop;
+    let pivotValue: number = arr[pivot];
+    while (left <= right) {
+        if (arr[left] >= pivotValue && arr[right] < pivotValue) {
+            swap(arr, left, right);
+        }
+        if (arr[left] < pivotValue) {
+            left = left + 1;
+        }
+        if (arr[right] >= pivotValue) {
+            right = right - 1;
+        }
+    }
+    
+    swap(arr, right, pivot);
+    qsHelper(arr, start, right - 1);
+    qsHelper(arr, right + 1, stop);
+}
+
+fn quicksort(arr: array): void {
+    qsHelper(arr, 0, len(arr) - 1);
+    return;
+}
+
+let arr: array = [];
+for i in [1, 15] {
+    append(arr, (100 * rand() // 1));
+}
+print("before:", arr);
+quicksort(arr);
+print("after:", arr);
