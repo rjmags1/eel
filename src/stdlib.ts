@@ -2,6 +2,9 @@ import { InternalValue, StructInstance, VoidReturn } from "./interpreter"
 
 const stdlib: { [key: string]: Function } = {
     print: (...args: InternalValue[]): void => {
+        if (args.length === 0) {
+            console.log(null)
+        }
         for (const arg of args) {
             if (arg instanceof StructInstance) {
                 console.log(arg.structType, arg.members)
@@ -29,6 +32,12 @@ const stdlib: { [key: string]: Function } = {
             throw new Error(`cannot call members on non-struct type value`)
         }
         return Object.entries(structInstance.members)
+    },
+    rand: (...args: any[]): number => {
+        if (args.length > 0) {
+            throw new Error('rand stdlib calls take 0 args')
+        }
+        return Math.random()
     }
 }
 
