@@ -185,7 +185,7 @@ export default class Interpreter {
     }
 
     private visitReturn(node: ast.Return): void {
-        if (node instanceof Token && node.type === TokenType.VOID) {
+        if (node.token.type === TokenType.VOID) {
             throw new FunctionReturnInterrupt(new VoidReturn())
         }
 
