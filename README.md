@@ -8,10 +8,16 @@ Visit https://replit.com/@maganinirj/eel?v=1 to experiment with eel in a replit 
 
 ## Run it locally
 Clone the repo:
-```$ git clone https://github.com/rjmags1/eel.git```
+```
+$ git clone https://github.com/rjmags1/eel.git
+```
 
 Compile eel source and execute a .eel file using NodeJS runtime:
-```$ npm run exec examples/fib.eel```
+```
+$ npm run exec examples/fib.eel
+```
 
 Skip the compilation step (after you have run exec at least once):
-```$ node dist/index.js examples/bingo.eel```
+```
+$ node dist/index.js examples/bingo.eel
+```
