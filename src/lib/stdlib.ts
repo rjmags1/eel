@@ -1,4 +1,4 @@
-import { InternalValue, StructInstance, VoidReturn } from "./interpreter"
+import { InternalValue, StructInstance, VoidReturn } from "../types/base"
 
 const stdlib: { [key: string]: Function } = {
     print: (...args: InternalValue[]): void => {

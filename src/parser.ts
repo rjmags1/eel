@@ -1,13 +1,9 @@
-import Tokenizer, { Token } from "./tokenizer"
-import TokenType from "./tokenTypes"
-import * as ast from "./ast"
-import stdlib from "./stdlib"
+import Tokenizer from "./tokenizer"
+import Token from "./types/token"
+import { TokenType, StatementInfo } from "./types/base"
+import * as ast from "./types/ast"
+import stdlib from "./lib/stdlib"
 
-type StatementInfo = {
-    topLevel?: boolean,
-    inIterBlock?: boolean,
-    inFunctionBlock?: boolean
-}
 
 export default class Parser {
     tokenizer: Tokenizer

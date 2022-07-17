@@ -1,31 +1,13 @@
 import Parser from "./parser"
-import * as ast from "./ast"
-import TokenType from "./tokenTypes"
-import { Token } from "./tokenizer"
-import stdlib from "./stdlib"
+import * as ast from "./types/ast"
+import Token from "./types/token"
+import stdlib from "./lib/stdlib"
+import {
+    InternalValue, IndexInfo, VarInfo, ScopeInjection,
+    MemoryStack, StructInstance, VoidReturn, IterationBlockInterrupt,
+    FunctionReturnInterrupt, TokenType
+} from "./types/base"
 
-
-export type InternalValue = number | boolean | string | null | any[] | StructInstance | VoidReturn
-
-type IndexInfo = { array: any[], idx: number }
-
-type VarInfo = {
-    value: InternalValue | undefined
-    type: Token
-}
-
-type IterVarInfo = {
-    count: number
-    name: string
-    counterToken: Token
-}
-
-type ScopeInjection = {
-    iterVarInfo?: IterVarInfo,
-    argsMap?: Map<string, VarInfo>
-}
-
-type MemoryStack = Map<string, VarInfo>[]
 
 export default class Interpreter {
     parser: Parser
@@ -753,37 +735,5 @@ export default class Interpreter {
         }
 
         return l === r
-    }
-}
-
-export class StructInstance {
-    structType: string
-    firstAlias: string
-    members: { [key: string]: InternalValue }
-    constructor(alias: string, type: string, fields: ast.StructField[]) {
-        this.firstAlias = alias
-        this.structType = type
-        this.members = {}
-        for (const field of fields) {
-            this.members[field.name] = null
-        }
-    }
-}
-
-export class VoidReturn { }
-
-class IterationBlockInterrupt extends Error {
-    keyword: 'continue' | 'break'
-    constructor(keyword: 'continue' | 'break') {
-        super()
-        this.keyword = keyword
-    }
-}
-
-class FunctionReturnInterrupt extends Error {
-    returnValue: InternalValue
-    constructor(returnValue: InternalValue) {
-        super()
-        this.returnValue = returnValue
     }
 }

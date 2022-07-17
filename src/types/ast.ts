@@ -1,4 +1,4 @@
-import { Token } from './tokenizer'
+import Token from "./token"
 
 
 export class AST { 

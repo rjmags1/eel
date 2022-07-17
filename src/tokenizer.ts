@@ -1,21 +1,7 @@
-import TokenType, { KEYWORDS } from "./tokenTypes"
+import KEYWORDS from "./types/keywords"
+import { TokenType, LineColTuple } from "./types/base"
+import Token from './types/token'
 
-
-export type TokenValue = number | null | string | boolean | any[]
-export class Token {
-    type: TokenType
-    value: TokenValue
-    line: number
-    col: number
-    constructor(type: TokenType, value: TokenValue, line: number, col: number) {
-        this.type = type
-        this.value = value
-        this.line = line
-        this.col = col
-    }
-}
-
-type LineCol = [line: number, col: number]
 
 export default class Tokenizer {
     line: number
@@ -42,7 +28,7 @@ export default class Tokenizer {
                 continue
             }
 
-            const lineCol: LineCol = this.lineCol()
+            const lineCol: LineColTuple = this.lineCol()
 
             if (this.currChar === '(') {
                 this.advance()
@@ -183,7 +169,7 @@ export default class Tokenizer {
         }
     }
 
-    private lineCol(): LineCol {
+    private lineCol(): LineColTuple {
         return [this.line, this.col]
     }
 
