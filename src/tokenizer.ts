@@ -4,8 +4,8 @@ import Token from './types/token'
 
 
 export default class Tokenizer {
-    line: number
-    col: number
+    private line: number
+    private col: number
     private currChar: string | null
     private text: string
     private idx: number
@@ -17,7 +17,15 @@ export default class Tokenizer {
         this.currChar = this.text[this.idx]
     }
 
-    getNextToken(): Token {
+    public getNextToken(): Token {
+        /*
+        main Tokenizer method.
+
+        return a particular type of token based on the current buffer char
+        and any relevant chars after the current char, advancing the buffer
+        position as appropriate. called repeatedly by Parser to generate AST.
+        */
+
         while (this.currChar !== null) {
             if (this.currChar === ' ' || this.currChar === '\n') {
                 this.skipWhitespace()
@@ -30,6 +38,7 @@ export default class Tokenizer {
 
             const lineCol: LineColTuple = this.lineCol()
 
+            // single and double char tokens
             if (this.currChar === '(') {
                 this.advance()
                 return new Token(TokenType.L_PAREN, '(', ...lineCol)
@@ -146,6 +155,8 @@ export default class Tokenizer {
                 this.advance()
                 return new Token(TokenType.DOT, '.', ...lineCol)
             }
+
+            // variable length tokens
             if (this.currChar === "'" || this.currChar === '"') {
                 return this.stringToken(...lineCol)
             }
@@ -153,8 +164,7 @@ export default class Tokenizer {
                 return this.numberToken(...lineCol)
             }
             if (this.currCharIsAlpha()) {
-                const keywordToken = this.foundKeyword(...lineCol)
-                return keywordToken === null ? this.idToken(...lineCol) : keywordToken
+                return this.keywordOrIdToken(...lineCol)
             }
 
             throw new Error(`invalid character: line ${ this.line } col ${ this.col }`)
@@ -163,17 +173,10 @@ export default class Tokenizer {
         return new Token(TokenType.EOF, null, ...this.lineCol())
     }
 
-    private skipComment(): void {
-        while (this.currChar !== '\n' && this.currChar !== null) {
-            this.advance()
-        }
-    }
 
-    private lineCol(): LineColTuple {
-        return [this.line, this.col]
-    }
 
-    private foundKeyword(line: number, col: number): Token | null {
+    // token-gen methods
+    private keywordOrIdToken(line: number, col: number): Token {
         type TokenTypeString = keyof typeof TokenType
 
         for (const [type, keyword] of Object.entries(KEYWORDS)) {
@@ -186,9 +189,9 @@ export default class Tokenizer {
             }
         }
 
-        return null
+        return this.idToken(line, col)
     }
-
+    
     private keywordToken(keywordTokenType: TokenType, line: number, col: number): Token {
         const keyword = this.word()
         let tokenValue: string | boolean | null = keyword
@@ -208,28 +211,6 @@ export default class Tokenizer {
     private idToken(line: number, col: number): Token {
         const alias = this.word()
         return new Token(TokenType.ID, alias, line, col)
-    }
-
-    private word(): string {
-        const chars = []
-        while (this.currCharIsAlpha() || this.currCharIsDigit()) {
-            chars.push(this.currChar)
-            this.advance()
-        }
-
-        return chars.join("")
-    }
-
-    private currCharIsAlpha(): boolean {
-        return this.currChar !== null && this.isAlpha(this.currChar)
-    }
-
-    private isAlpha(char: string): boolean {
-        return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
-    }
-
-    private isDigit(char: string): boolean {
-        return char >= '0' && char <= '9'
     }
 
     private numberToken(line: number, col: number): Token {
@@ -267,12 +248,13 @@ export default class Tokenizer {
         return new Token(TokenType.STRING_CONST, str, line, col)
     }
 
-    private currCharIsDigit(): boolean {
-        return this.currChar !== null && this.isDigit(this.currChar)
-    }
 
-    private nextChar(): string | null {
-        return this.idx < this.text.length - 1 ? this.text[this.idx + 1] : null
+
+    // advancers
+    private skipComment(): void {
+        while (this.currChar !== '\n' && this.currChar !== null) {
+            this.advance()
+        }
     }
 
     private skipWhitespace(): void {
@@ -293,5 +275,42 @@ export default class Tokenizer {
         }
         this.currChar = this.text[this.idx]
         this.col++
+    }
+
+
+
+    // utils
+    private word(): string {
+        const chars = []
+        while (this.currCharIsAlpha() || this.currCharIsDigit()) {
+            chars.push(this.currChar)
+            this.advance()
+        }
+
+        return chars.join("")
+    }
+
+    private currCharIsAlpha(): boolean {
+        return this.currChar !== null && this.isAlpha(this.currChar)
+    }
+
+    private currCharIsDigit(): boolean {
+        return this.currChar !== null && this.isDigit(this.currChar)
+    }
+
+    private isAlpha(char: string): boolean {
+        return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z')
+    }
+
+    private isDigit(char: string): boolean {
+        return char >= '0' && char <= '9'
+    }
+
+    private lineCol(): LineColTuple {
+        return [this.line, this.col]
+    }
+
+    private nextChar(): string | null {
+        return this.idx < this.text.length - 1 ? this.text[this.idx + 1] : null
     }
 }
