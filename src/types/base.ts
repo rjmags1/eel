@@ -134,7 +134,7 @@ export class IterationBlockInterrupt extends Error {
     }
 }
 
-export class FunctionReturnInterrupt extends Error {
+export class FunctionReturnBlockInterrupt extends Error {
     returnValue: InternalValue
     constructor(returnValue: InternalValue) {
         super()

@@ -5,15 +5,15 @@ import stdlib from "./lib/stdlib"
 import {
     InternalValue, IndexInfo, VarInfo, ScopeInjection,
     MemoryStack, StructInstance, VoidReturn, IterationBlockInterrupt,
-    FunctionReturnInterrupt, TokenType
+    FunctionReturnBlockInterrupt, TokenType
 } from "./types/base"
 
 
 export default class Interpreter {
-    parser: Parser
-    memoryStack: MemoryStack
-    structs: Map<string, ast.StructField[]>
-    functions: Map<string, ast.FunctionDecl>
+    private parser: Parser
+    private memoryStack: MemoryStack
+    private structs: Map<string, ast.StructField[]>
+    private functions: Map<string, ast.FunctionDecl>
     constructor(parser: Parser) {
         this.parser = parser
         this.memoryStack = []
@@ -21,11 +21,21 @@ export default class Interpreter {
         this.functions = new Map()
     }
 
-    interpret(): void {
+    public interpret(): void {
+        /*
+        main Interpreter method.
+
+        builds AST using the parser and visits each node in the AST
+        in a DFS manner.
+        */
+
         const ast: ast.AST = this.parser.buildAST()
         this.visit(ast)
     }
 
+    
+
+    // visitors
     private visit(node: ast.AST): InternalValue | void {
         if (node instanceof ast.UnaryOp) {
             return this.visitUnaryOp(node)
@@ -109,57 +119,30 @@ export default class Interpreter {
         }
     }
 
-    private checkStdlibCollision(node: ast.AST, alias: string): void {
-        if (stdlib.hasOwnProperty(alias)) {
-            throw new Error(`${ alias } has a name collision with a stdlib function,
-                ${ this.stringifyLineCol(node) }`)
-        }
-    }
-
     private visitFunctionCall(node: ast.FunctionCall): InternalValue | void {
         const { called, args } = node
         if (!this.functions.has(called)) {
             throw new Error(`attempted to call undeclared function ${ called },
                 ${ this.stringifyLineCol(node) }`)
         }
-
-        const calledDeclNode = this.functions.get(called) as ast.FunctionDecl
-        const { params, body: functionBody } = calledDeclNode
+        const { params, body: functionBody } = (
+            this.functions.get(called) as ast.FunctionDecl)
         if (params.length !== args.length) {
-            throw new Error(`calls to ${ called } expect 
-                ${ params.length } args but ${ args.length }
-                were provided, ${ this.stringifyLineCol(node) }`)
-        }
-
-        const visitedArgs = args.map(arg => this.visit(arg))
-        const argsMap: Map<string, VarInfo> = new Map()
-        for (let i = 0; i < visitedArgs.length; i++) {
-            const visitedArg = visitedArgs[i] as InternalValue
-            const paramTypeToken = params[i].type
-            if (!this.assignedCorrectType(paramTypeToken, visitedArg, args[i])) {
-                const dType = paramTypeToken.type === TokenType.ID ? 
-                    `struct ${ paramTypeToken.value }` : 
-                    paramTypeToken.type.toLowerCase()
-                const aType = visitedArg instanceof StructInstance ?
-                    `struct ${ visitedArg.structType }` : typeof visitedArg
-                throw new Error(
-                    `type error: declared param ${ params[i].name } of type  
-                    ${ dType } cannot be assigned value of type ${ aType }, 
-                    ${ this.stringifyLineCol(args[i])}`)
-            }
-
-            argsMap.set(params[i].name as string, {
-                value: visitedArg,
-                type: params[i].type
-            })
+            throw new Error(`calls to ${ called } expect ${ params.length } args 
+                but ${ args.length } were provided, ${ this.stringifyLineCol(node) }`)
         }
         
+        const paramsToArgVals = this.genArgsMap(params, args)
         try {
-            this.visitBlock(functionBody, { argsMap })
+            // execute the call by visiting function block, passing its
+            // params mapped to call arg values
+            this.visitBlock(functionBody, { argsMap: paramsToArgVals })
             return new VoidReturn()
         }
         catch (e) {
-            if (e instanceof FunctionReturnInterrupt) {
+            // if exception occurred during function block visit,
+            // return the value passed in the exception instead of rethrowing
+            if (e instanceof FunctionReturnBlockInterrupt) {
                 return e.returnValue
             }
             throw e
@@ -167,12 +150,17 @@ export default class Interpreter {
     }
 
     private visitReturn(node: ast.Return): void {
+        /*
+        throw FunctionReturnBlockInterrupt to return control to the nearest
+        this.visitFunctionCall call on the internal (NodeJS) call stack
+        */
+
         if (node.token.type === TokenType.VOID) {
-            throw new FunctionReturnInterrupt(new VoidReturn())
+            throw new FunctionReturnBlockInterrupt(new VoidReturn())
         }
 
         const retNode = node.returned as ast.AST
-        throw new FunctionReturnInterrupt(this.visit(retNode) as InternalValue)
+        throw new FunctionReturnBlockInterrupt(this.visit(retNode) as InternalValue)
     }
 
     private visitFunctionDecl(node: ast.FunctionDecl): void {
@@ -195,10 +183,6 @@ export default class Interpreter {
         }
 
         this.functions.set(fnName, node)
-        //console.log(
-            //"FUNCTIONS ---------------------", 
-            //this.functions,
-            //"-------------------------")
     }
 
     private visitMultiSelection(node: ast.MultiSelection): void {
@@ -209,7 +193,8 @@ export default class Interpreter {
                 throw new Error(`non boolean expression in conditional 
                     statement:  ${ this.stringifyLineCol(selection) }`)
             }
-            if (visitedCondition) {
+            if (visitedCondition) { 
+                // visit the block of the first true if condition
                 this.visitBlock(block)
                 return
             }
@@ -220,37 +205,6 @@ export default class Interpreter {
         }
     }
 
-    private memoryRetrieve(alias: string): VarInfo | null {
-        for (let level = this.memoryStack.length - 1; level >= 0; level--) {
-            const blockScopeAtLevel = this.memoryStack[level]
-            if (blockScopeAtLevel.has(alias)) {
-                return blockScopeAtLevel.get(alias) as VarInfo
-            }
-        }
-
-        return null
-    }
-
-    private memorySet(alias: string, varInfo: VarInfo, currScope=false): void {
-        const currScopeLevel = this.memoryStack.length - 1
-        if (currScope) {
-            this.memoryStack[currScopeLevel].set(alias, varInfo)
-            return
-        }
-
-        for (let level = currScopeLevel; level >= 0; level--) {
-            const blockScopeAtLevel = this.memoryStack[level]
-            if (blockScopeAtLevel.has(alias)) {
-                blockScopeAtLevel.set(alias, varInfo)
-                return
-            }
-        }
-    }
-
-    private stringifyLineCol(node: ast.AST) {
-        return `line: ${ node.token.line } col: ${ node.token.col }`
-    }
-
     private visitStructMember(node: ast.StructMember, mutating=false): InternalValue {
         const structInstance = this.visit(node.structInstance) as StructInstance
         if (!(structInstance instanceof StructInstance)) {
@@ -258,6 +212,9 @@ export default class Interpreter {
                 `invalid attempt to access member of non-struct instance value:
                 ${ this.stringifyLineCol(node)}`)
         }
+
+        // make sure <struct-instance>.member is actually a field of
+        // struct type of <struct-instance>
         if (!(structInstance.members.hasOwnProperty(node.field))) {
             const internalStructInfo = this.memoryRetrieve(
                 structInstance.firstAlias) as VarInfo
@@ -270,82 +227,70 @@ export default class Interpreter {
         return mutating ? structInstance : structInstance.members[node.field]
     }
 
-    private mutateStruct(left: ast.StructMember, newValue: ast.AST): void {
-        const internalStructInstance = this.visitStructMember(left, true) as StructInstance
-        const structType = internalStructInstance.structType
-        const fields = this.structs.get(structType) as ast.StructField[]
-        const relevantFieldInfo = fields.filter(f => f.name === left.field)[0]
-        const fieldTypeToken = relevantFieldInfo.type
-        const visitedNewVal = this.visit(newValue) as InternalValue
-        if (!this.assignedCorrectType(relevantFieldInfo.type, visitedNewVal, newValue)) {
-            const fieldType = fieldTypeToken.type
-            const dType = fieldTypeToken.type === TokenType.ID ? 
-                `struct ${ fieldTypeToken.value }` : fieldType.toLowerCase()
-            const aType = visitedNewVal instanceof StructInstance ?
-                `struct ${ visitedNewVal.structType }` : typeof visitedNewVal
-            throw new Error(
-                `type error: declared field of type ${ dType } of struct type
-                 ${ internalStructInstance.structType } cannot be assigned
-                value of type ${ aType }, ${ this.stringifyLineCol(newValue)}`)
-        }
-
-        //console.log("before", internalStructInstance)
-        internalStructInstance.members[left.field] = visitedNewVal
-        //console.log("after", internalStructInstance)
-    }
-
     private visitStructDecl(node: ast.StructDecl): void {
         if (this.structs.has(node.name)) {
             throw new Error(`struct of type ${ node.name } previously declared,
                 ${ this.stringifyLineCol(node) }`)
         }
-        const undeclaredStructFields = node.fields.filter(f => (
+        
+        // make sure any fields of a struct type correspond to a struct type
+        // that has been declared
+        const undeclaredStructTypeFields = node.fields.filter(f => (
                 f.type.type === TokenType.ID && 
                 !this.structs.has(f.type.value as string))
             ).map(f => (f.type.value as string).toLowerCase())
-        if (undeclaredStructFields.length > 0) {
+        if (undeclaredStructTypeFields.length > 0) {
             throw new Error(
-                `undeclared struct type(s) ${ undeclaredStructFields } declared 
+                `undeclared struct type(s) ${ undeclaredStructTypeFields } declared 
                 as fields in declaration of struct ${ node.name },
                 ${ this.stringifyLineCol(node) }`)
         }
 
         this.structs.set(node.name, node.fields)
-        //console.log(node.name, ':', (this.structs.get(node.name) as any).map(
-            //(f: ast.StructField) => [f.name, '->', f.type]))
     }
 
     private visitBlock(
         node: ast.Block, 
         { iterVarInfo, argsMap }: ScopeInjection = {}
     ): void {
-        this.memoryStack.push(new Map())
-        if (iterVarInfo) {
+        this.memoryStack.push(new Map()) // put new block scope in memory
+
+        if (iterVarInfo) { // if specified, load iterator var in new block scope
             this.memorySet(iterVarInfo.name, {
                 value: iterVarInfo.count,
                 type: iterVarInfo.counterToken
             }, true)
         }
-        if (argsMap) {
+        if (argsMap) { // if specified, load args map in new block scope
             argsMap.forEach(
                 (varInfo, param) => this.memorySet(param, varInfo, true))
         }
+
         for (const child of node.children) {
+            // execute each of the blocks child statements
             try {
                 this.visit(child)
             }
             catch (e) {
+                // pop this blocks scope from memory stack before rethrowing
                 if (e instanceof IterationBlockInterrupt ||
-                    e instanceof FunctionReturnInterrupt) {
+                    e instanceof FunctionReturnBlockInterrupt) {
                     this.memoryStack.pop()
                 }
                 throw e
             }
         }
-        this.memoryStack.pop()
+
+        // pop this blocks scope from memory stack after executing child statements
+        this.memoryStack.pop() 
     }
 
     private visitIterControl(node: ast.IterControl): void {
+        /*
+        throw IterationBlockInterrupt to return control to nearest
+        this.visitForLoop or this.visitWhileLoop on the internal (NodeJS) call stack
+        */
+
         throw new IterationBlockInterrupt(node.keyword)
     }
 
@@ -357,6 +302,7 @@ export default class Interpreter {
             throw new Error(`non integer for loop bound, 
                 ${ this.stringifyLineCol(node)}`)
         }
+
         let counter = visitedStart
         const counterToken = new Token(
             TokenType.NUMBER_CONST, 
@@ -374,12 +320,12 @@ export default class Interpreter {
                 this.visitBlock(block, { iterVarInfo })
             }
             catch (e) {
-                if (e instanceof IterationBlockInterrupt) {
+                if (e instanceof IterationBlockInterrupt) { // don't rethrow
                     if (e.keyword === 'continue') {
-                        continue
+                        continue // visit the for loop block again
                     }
-                    else {
-                        return
+                    else { // e.keyword === 'break'
+                        return // stop visiting the for loop block
                     }
                 }
                 throw e
@@ -401,12 +347,12 @@ export default class Interpreter {
                 this.visit(block)
             }
             catch (e) {
-                if (e instanceof IterationBlockInterrupt) {
+                if (e instanceof IterationBlockInterrupt) { // don't rethrow
                     if (e.keyword === 'continue') {
-                        continue
+                        continue // visit the while loop block again
                     }
                     else {
-                        return
+                        return // stop visiting the while loop block
                     }
                 }
                 throw e
@@ -435,69 +381,21 @@ export default class Interpreter {
         }
 
         const declaredTypeToken = (this.memoryRetrieve(alias) as VarInfo).type
-        const declaredType = declaredTypeToken.type
         const assignedVal = this.visit(right) as InternalValue
         if (!this.assignedCorrectType(declaredTypeToken, assignedVal, right)) {
-            const dType = declaredType === TokenType.ID ? 
-                `struct ${ declaredTypeToken.value }` : declaredType.toLowerCase()
-            const aType = assignedVal instanceof StructInstance ?
-                `struct ${ assignedVal.structType }` : typeof assignedVal
-            throw new Error(
-                `type error: var ${ alias } of type ${ dType } cannot
-                be assigned value of type ${ aType }, 
-                ${ this.stringifyLineCol(left) }`)
+            this.throwAssignedTypeError(declaredTypeToken, assignedVal, right, "var")
         }
 
         this.memorySet(alias, { 
             value: assignedVal as InternalValue,
             type: declaredTypeToken
         })
-        //this.printMemory()
-    }
-
-    private printMemory(): void {
-        console.log("===============================")
-        console.log(...this.memoryStack.map(
-            (st, i) => [
-                `level: ${ i }`, 
-                `-------------------`,
-                st
-            ]).reverse())
-        console.log("===============================")
-    }
-
-    private assignedCorrectType(
-        declaredTypeToken: Token, assignedVal: InternalValue, assignedNode: ast.AST): boolean {
-        const declaredType = declaredTypeToken.type
-        if (assignedVal === null) {
-            return true
-        }
-        if (declaredType === TokenType.ID) {
-            return assignedVal instanceof StructInstance &&
-                declaredTypeToken.value === (assignedVal as StructInstance).structType
-        }
-        if (declaredType === TokenType.ARRAY) {
-            return assignedVal instanceof Array
-        }
-        if (declaredType === TokenType.NUMBER) {
-            return typeof assignedVal === 'number'
-        }
-        if (declaredType === TokenType.BOOLEAN) {
-            return typeof assignedVal === 'boolean'
-        }
-        if (declaredType === TokenType.STRING) {
-            return typeof assignedVal === 'string'
-        }
-        
-        throw new Error(`runtime error while typechecking assignment,
-            ${ this.stringifyLineCol(assignedNode) }`)
     }
 
     private visitArrayIdx(node: ast.ArrayIdx, mutating=false): InternalValue | IndexInfo {
         const array = this.visit(node.array)
         let idx = this.visit(node.idx) as number
         if (!(array instanceof Array)) {
-            //console.log(array, idx, node)
             throw new Error(`index error: attempted to index non-array value,
                 ${ this.stringifyLineCol(node.array) }`)
         }
@@ -505,23 +403,15 @@ export default class Interpreter {
             throw new Error(`index error: non-integer index, 
                 ${ this.stringifyLineCol(node.idx) }`)
         }
-        if (idx < 0) idx += array.length
+        
+        
+        if (idx < 0) idx += array.length // wrap negative index before EOB check
         if (idx < 0 || idx >= array.length) {
             throw new Error(`index error: out of bounds, 
                 ${ this.stringifyLineCol(node.idx) }`)
         }
 
         return mutating ? { array, idx } : array[idx]
-    }
-
-    private mutateArray(indexed: ast.ArrayIdx, newValue: ast.AST): void {
-        const { array, idx } = this.visitArrayIdx(indexed, true) as IndexInfo
-        array[idx] = this.visit(newValue)
-        //this.printMemory()
-    }
-
-    private varIsDeclaredInCurrScope(alias: string) {
-        return this.memoryStack[this.memoryStack.length - 1].has(alias)
     }
 
     private visitVarDecl(node: ast.VarDecl): void {
@@ -546,7 +436,6 @@ export default class Interpreter {
             value: new StructInstance(alias, structType, structFields),
             type: type
         }, true)
-        //this.printMemory()
     }
 
     private visitVar(node: ast.Var): InternalValue {
@@ -558,14 +447,6 @@ export default class Interpreter {
 
         throw new Error(`reference error: variable ${ alias } not defined,
             ${ this.stringifyLineCol(node) }`)
-    }
-
-    private varIsDeclared(alias: string): boolean {
-        return this.memoryRetrieve(alias) !== null
-    }
-
-    private varIsDefined(alias: string): boolean {
-        return this.memoryRetrieve(alias)?.value !== undefined
     }
 
     private visitArray(node: ast.Array): any[] {
@@ -724,6 +605,78 @@ export default class Interpreter {
             ${ typeof left } and ${ typeof right }, ${ this.stringifyLineCol(node) }`)
     }
 
+
+
+    // mutators
+    private mutateArray(indexed: ast.ArrayIdx, newValue: ast.AST): void {
+        const { array, idx } = this.visitArrayIdx(indexed, true) as IndexInfo
+        array[idx] = this.visit(newValue)
+    }
+
+    private mutateStruct(left: ast.StructMember, newValue: ast.AST): void {
+        const internalStructInstance = this.visitStructMember(left, true) as StructInstance
+        const structType = internalStructInstance.structType
+        const fields = this.structs.get(structType) as ast.StructField[]
+        const relevantFieldInfo = fields.filter(f => f.name === left.field)[0]
+        const fieldTypeToken = relevantFieldInfo.type
+        const visitedNewVal = this.visit(newValue) as InternalValue
+        if (!this.assignedCorrectType(relevantFieldInfo.type, visitedNewVal, newValue)) {
+            this.throwAssignedTypeError(fieldTypeToken, visitedNewVal, newValue, 
+                `field of struct type ${ structType }`)
+        }
+
+        internalStructInstance.members[left.field] = visitedNewVal
+    }
+
+
+
+    // memory
+    private memoryRetrieve(alias: string): VarInfo | null {
+        for (let level = this.memoryStack.length - 1; level >= 0; level--) {
+            const blockScopeAtLevel = this.memoryStack[level]
+            if (blockScopeAtLevel.has(alias)) {
+                return blockScopeAtLevel.get(alias) as VarInfo
+            }
+        }
+
+        return null
+    }
+
+    private memorySet(alias: string, varInfo: VarInfo, currScope=false): void {
+        const currScopeLevel = this.memoryStack.length - 1
+        if (currScope) {
+            this.memoryStack[currScopeLevel].set(alias, varInfo)
+            return
+        }
+
+        for (let level = currScopeLevel; level >= 0; level--) {
+            const blockScopeAtLevel = this.memoryStack[level]
+            if (blockScopeAtLevel.has(alias)) {
+                blockScopeAtLevel.set(alias, varInfo)
+                return
+            }
+        }
+    }
+
+    private varIsDeclared(alias: string): boolean {
+        return this.memoryRetrieve(alias) !== null
+    }
+
+    private varIsDefined(alias: string): boolean {
+        return this.memoryRetrieve(alias)?.value !== undefined
+    }
+
+    private varIsDeclaredInCurrScope(alias: string) {
+        return this.memoryStack[this.memoryStack.length - 1].has(alias)
+    }
+
+
+
+    // utils
+    private stringifyLineCol(node: ast.AST) {
+        return `line: ${ node.token.line } col: ${ node.token.col }`
+    }
+
     private arrayEqual(left: any[], right: any[]): boolean {
         if (left === right) return true
         if (left.length !== right.length) return false
@@ -735,5 +688,87 @@ export default class Interpreter {
         }
 
         return l === r
+    }
+
+    private assignedCorrectType(
+        declaredTypeToken: Token, assignedVal: InternalValue, assignedNode: ast.AST): boolean {
+        const declaredType = declaredTypeToken.type
+        if (assignedVal === null) {
+            return true
+        }
+        if (declaredType === TokenType.ID) {
+            return assignedVal instanceof StructInstance &&
+                declaredTypeToken.value === (assignedVal as StructInstance).structType
+        }
+        if (declaredType === TokenType.ARRAY) {
+            return assignedVal instanceof Array
+        }
+        if (declaredType === TokenType.NUMBER) {
+            return typeof assignedVal === 'number'
+        }
+        if (declaredType === TokenType.BOOLEAN) {
+            return typeof assignedVal === 'boolean'
+        }
+        if (declaredType === TokenType.STRING) {
+            return typeof assignedVal === 'string'
+        }
+        
+        throw new Error(`runtime error while typechecking assignment,
+            ${ this.stringifyLineCol(assignedNode) }`)
+    }
+
+    private checkStdlibCollision(node: ast.AST, alias: string): void {
+        if (stdlib.hasOwnProperty(alias)) {
+            throw new Error(`${ alias } has a name collision with a stdlib function,
+                ${ this.stringifyLineCol(node) }`)
+        }
+    }
+
+    private printMemory(): void {
+        console.log("===============================")
+        console.log(...this.memoryStack.map(
+            (st, i) => [
+                `level: ${ i }`, 
+                `-------------------`,
+                st
+            ]).reverse())
+        console.log("===============================")
+    }
+
+    private throwAssignedTypeError(
+        expectedTypeToken: Token, 
+        visitedAssigned: InternalValue, 
+        assigned: ast.AST,
+        assigningToType: string
+    ): void {
+        const dType = expectedTypeToken.type === TokenType.ID ? 
+            `struct ${ expectedTypeToken.value }` : 
+            expectedTypeToken.type.toLowerCase()
+        const aType = visitedAssigned instanceof StructInstance ?
+            `struct ${ visitedAssigned.structType }` : typeof visitedAssigned
+        throw new Error(
+            `type error: declared ${ assigningToType } of type  
+            ${ dType } cannot be assigned value of type ${ aType }, 
+            ${ this.stringifyLineCol( assigned )}`)
+    }
+
+    private genArgsMap(params: ast.Param[], args: ast.AST[]): Map<string, VarInfo> {
+        const visitedArgs = args.map(arg => this.visit(arg))
+        const argsMap: Map<string, VarInfo> = new Map()
+        for (let i = 0; i < visitedArgs.length; i++) {
+            const visitedArg = visitedArgs[i] as InternalValue
+            const paramTypeToken = params[i].type
+            if (!this.assignedCorrectType(paramTypeToken, visitedArg, args[i])) {
+                this.throwAssignedTypeError(
+                    paramTypeToken, visitedArg, args[i], "param")
+            }
+
+            argsMap.set(params[i].name as string, {
+                value: visitedArg,
+                type: params[i].type
+            })
+        }
+
+        return argsMap
     }
 }
