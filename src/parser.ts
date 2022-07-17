@@ -6,26 +6,65 @@ import stdlib from "./lib/stdlib"
 
 
 export default class Parser {
-    tokenizer: Tokenizer
-    currToken: Token
-    fnNames: Set<string>
+    private tokenizer: Tokenizer
+    private currToken: Token
+    private functionNames: Set<string>
     constructor(tokenizer: Tokenizer) {
         this.tokenizer = tokenizer
         this.currToken = this.nextToken()
-        this.fnNames = new Set()
+        this.functionNames = new Set([...Object.keys(stdlib)])
     }
 
-    buildAST(): ast.Block {
+    public buildAST(): ast.Block {
+        /*
+        main Parser method.
+
+        generates and returns AST using recursive descent parsing, provided
+        there are no syntax errors in the text buffer passed to this.tokenizer.
+        */
+
         const rootToken = new Token(TokenType.ROOT, 'root', 0, 0)
         const root = new ast.Block(rootToken, true) // root=true
         while (this.currToken.type !== TokenType.EOF) {
-            root.children.push(this.statement({ topLevel: true })) // topLevel=true
+            root.children.push(this.statement({ topLevel: true }))
         }
 
         return root
     }
 
+
+    private eat(tokenType: TokenType): void {
+        /*
+        critical Parser method.
+
+        detects syntax errors by checking the passed, expected token type
+        against the current token's type. gets the next token from the
+        tokenizer if there was no syntax error.
+        */
+
+        if (this.currToken.type === tokenType) {
+            this.currToken = this.nextToken()
+            return
+        }
+
+        throw new Error(
+            `invalid syntax: ${ this.stringifyLineCol(this.currToken) }`)
+    }
+
+
+    // statement parsers
     private block(iterBlock: boolean, functionBlock: boolean): ast.Block {
+        /*
+        parse and collect all statements in a curly-bracket-delimited,
+        non-root block of statements, passing relevant info about the 
+        block to the statements within it, and return them in a Block ast node.
+
+        iterBlock is true if the block itself is an iteration block, or the
+        block is nested inside an iteration block. functionBlock is true if
+        the block itself is a function block, or the block is nested inside
+        a function block. both, neither, one, or the other can be true or false.
+        */
+
         const block = new ast.Block(this.currToken)
         this.eat(TokenType.L_CURLY)
         while (this.currToken.type !== TokenType.R_CURLY) {
@@ -42,6 +81,13 @@ export default class Parser {
         inIterBlock=false,
         inFunctionBlock=false 
     }: StatementInfo = {}): ast.AST {
+        /*
+        select a method to parse the current statement with based on 
+        the current token, passing along any relevant information about the
+        statement (ie, if the current statement is a continue statement,
+        it matters if the current statement resides inside an iteration block).
+        */
+
         if (this.currToken.type === TokenType.IF) {
             return this.multiSelection({ inIterBlock, inFunctionBlock })
         }
@@ -63,62 +109,22 @@ export default class Parser {
         else if (this.currToken.type === TokenType.RETURN) {
             return this.return({ inFunctionBlock })
         }
-        else if (this.currToken.type === TokenType.ID && (
-                    this.fnNames.has(this.currToken.value as string) ||
-                    stdlib.hasOwnProperty(this.currToken.value as string))) {
-            return this.functionCall(this.variable(), true)
+        else if (this.currToken.type === TokenType.STRUCT) {
+            return this.structDecl({ topLevel })
+        }
+        else if (this.currToken.type === TokenType.ID && 
+            this.functionNames.has(this.currToken.value as string)) {
+            return this.functionCallStatement(this.variable())
         }
         else {
-            return this.declareAssign({ topLevel })
+            return this.varDeclareAssign()
         }
     }
 
-    private return({ inFunctionBlock }: StatementInfo): ast.Return {
-        const returnToken = this.currToken
-        if (!inFunctionBlock) {
-            throw new Error(`illegal return statement outside of function block,
-                ${ this.stringifyLineCol(returnToken) }`)
-        }
-
-        this.eat(TokenType.RETURN)
-        const returnNode = new ast.Return(
-            this.currToken.type === TokenType.SEMI ? 
-                new Token(TokenType.VOID, 'void', 0, 0) : this.expr())
+    private functionCallStatement(fnRef: ast.AST): ast.FunctionCall | ast.StdLibCall {
+        const callNode = this.functionCall(fnRef)
         this.eat(TokenType.SEMI)
-        return returnNode
-    }
-
-    private functionDecl({ topLevel=false }: StatementInfo): ast.FunctionDecl {
-        if (!topLevel) {
-            throw new Error("illegal non-top level function declaration")
-        }
-
-        const fnToken = this.currToken
-        this.eat(TokenType.FUNCTION)
-        const nameToken = this.currToken
-        this.fnNames.add(nameToken.value as string)
-        this.eat(TokenType.ID)
-        this.eat(TokenType.L_PAREN)
-        const params = this.params()
-        this.eat(TokenType.R_PAREN)
-        this.eat(TokenType.COLON)
-        return new ast.FunctionDecl(
-            fnToken, nameToken, params, this.returnSpecifier(), this.block(false, true))
-    }
-
-    private params(): ast.Param[] {
-        const params: ast.Param[] = []
-        while (this.currToken.type !== TokenType.R_PAREN) {
-            const nameToken = this.currToken
-            this.eat(TokenType.ID)
-            this.eat(TokenType.COLON)
-            params.push(new ast.Param(nameToken, this.typeSpecifier()))
-            if (this.currToken.type as TokenType !== TokenType.R_PAREN) {
-                this.eat(TokenType.COMMA)
-            }
-        }
-
-        return params
+        return callNode
     }
 
     private forLoop({ inFunctionBlock=false }: StatementInfo): ast.ForLoop {
@@ -131,7 +137,9 @@ export default class Parser {
         this.eat(TokenType.COMMA)
         const stop = this.expr()
         this.eat(TokenType.R_BRACK)
-        return new ast.ForLoop(forToken, iterVar, start, stop, this.block(true, inFunctionBlock))
+        const block = this.block(true, inFunctionBlock)
+
+        return new ast.ForLoop(forToken, iterVar, start, stop, block)
     }
 
     private whileLoop({ inFunctionBlock=false }: StatementInfo): ast.WhileLoop {
@@ -140,7 +148,9 @@ export default class Parser {
         this.eat(TokenType.L_PAREN)
         const condition = this.expr()
         this.eat(TokenType.R_PAREN)
-        return new ast.WhileLoop(whileToken, condition, this.block(true, inFunctionBlock))
+        const block = this.block(true, inFunctionBlock)
+
+        return new ast.WhileLoop(whileToken, condition, block)
     }
 
     private iterControl({ inIterBlock }: StatementInfo): ast.IterControl {
@@ -161,12 +171,29 @@ export default class Parser {
         return controlNode
     }
 
+    private return({ inFunctionBlock }: StatementInfo): ast.Return {
+        const returnToken = this.currToken
+        if (!inFunctionBlock) {
+            throw new Error(`illegal return statement outside of function block,
+                ${ this.stringifyLineCol(returnToken) }`)
+        }
+
+        this.eat(TokenType.RETURN)
+        const returnedInfo = this.currToken.type === TokenType.SEMI ? 
+            new Token(TokenType.VOID, 'void', 0, 0) : this.expr()
+        const returnNode = new ast.Return(returnedInfo)
+        this.eat(TokenType.SEMI)
+
+        return returnNode
+    }
+
     private multiSelection({ 
         inIterBlock=false, 
         inFunctionBlock=false 
     }: StatementInfo): ast.MultiSelection {
         const ifToken = this.currToken
-        const selections: ast.Selection[] = [this.selection({ inIterBlock, inFunctionBlock })]
+        const selections: ast.Selection[] = (
+            [this.selection({ inIterBlock, inFunctionBlock })])
         let defaultBlock: ast.Block | null = null
         while (this.currToken.type === TokenType.ELSE) {
             this.eat(TokenType.ELSE)
@@ -190,19 +217,16 @@ export default class Parser {
         this.eat(TokenType.L_PAREN)
         const condition = this.expr()
         this.eat(TokenType.R_PAREN)
-        return new ast.Selection(ifToken, condition, this.block(inIterBlock, inFunctionBlock))
+        const block = this.block(inIterBlock, inFunctionBlock)
+
+        return new ast.Selection(ifToken, condition, block)
     }
 
-    private declareAssign({ topLevel }: StatementInfo): ast.AST {
-        if (this.currToken.type === TokenType.STRUCT) {
-            if (!topLevel) {
-                throw new Error(`syntax error: illegal non top level struct 
-                    declaration ${ this.stringifyLineCol(this.currToken) }`)
-            }
-            const structDec = this.structDecl()
-            this.eat(TokenType.SEMI)
-            return structDec
-        }
+    private varDeclareAssign(): ast.AST {
+        /*
+        parses declaration AND assignment in one statement like in JS,
+        or just assignment.
+        */
 
         const left = this.currToken.type === TokenType.LET ?
             this.varDecl() : this.ref()
@@ -216,53 +240,8 @@ export default class Parser {
         this.eat(TokenType.ASSIGN)
         const assignment = new ast.Assign(left, assignToken, this.expr())
         this.eat(TokenType.SEMI)
+
         return assignment
-    }
-
-    private stringifyLineCol(token: Token): string {
-        const { line, col } = token
-        return `line: ${ line } col: ${ col }`
-    }
-
-    private structDecl(): ast.StructDecl {
-        const declaratorToken = this.currToken
-        this.eat(TokenType.STRUCT)
-        const structName = this.currToken.value as string
-        this.eat(TokenType.ID)
-        const openingCurlyToken = this.currToken
-        this.eat(TokenType.L_CURLY)
-        const fields: ast.StructField[] = []
-        const fieldNames: Set<string> = new Set()
-        while (this.currToken.type !== TokenType.R_CURLY) {
-            const fieldToken = this.currToken
-            const field = this.structField()
-            if (fieldNames.has(field.name)) {
-                throw new Error(
-                    `duplicate struct fields: ${ this.stringifyLineCol(fieldToken) }`)
-            }
-            fields.push(field)
-            fieldNames.add(field.name)
-        }
-        this.eat(TokenType.R_CURLY)
-
-        if (fields.length === 0) {
-            throw new Error( `empty structs not allowed: 
-                ${ this.stringifyLineCol(openingCurlyToken)}`)
-        }
-
-        return new ast.StructDecl(declaratorToken, structName, fields)
-    }
-
-    private structField(): ast.StructField {
-        const field = this.currToken
-        this.eat(TokenType.ID)
-        this.eat(TokenType.COLON)
-        const fieldType = this.typeSpecifier()
-        if (this.currToken.type !== TokenType.R_CURLY) {
-            this.eat(TokenType.COMMA)
-        }
-
-        return new ast.StructField(field, fieldType)
     }
 
     private varDecl(): ast.VarDecl {
@@ -275,7 +254,95 @@ export default class Parser {
         return new ast.VarDecl(declaratorToken, alias, this.typeSpecifier())
     }
 
-    private returnSpecifier(): Token {
+    private functionDecl({ topLevel=false }: StatementInfo): ast.FunctionDecl {
+        if (!topLevel) {
+            throw new Error("illegal non-top level function declaration")
+        }
+
+        const fnToken = this.currToken
+        this.eat(TokenType.FUNCTION)
+        const nameToken = this.currToken
+        this.functionNames.add(nameToken.value as string)
+        this.eat(TokenType.ID)
+        this.eat(TokenType.L_PAREN)
+        const params = this.params()
+        this.eat(TokenType.R_PAREN)
+        this.eat(TokenType.COLON)
+        const returnType = this.returnTypeSpecifier()
+        const block = this.block(false, true)
+
+        return new ast.FunctionDecl(fnToken, nameToken, params, returnType, block)
+    }
+
+    private params(): ast.Param[] {
+        const params: ast.Param[] = []
+        while (this.currToken.type !== TokenType.R_PAREN) {
+            const nameToken = this.currToken
+            this.eat(TokenType.ID)
+            this.eat(TokenType.COLON)
+            params.push(new ast.Param(nameToken, this.typeSpecifier()))
+            if (this.currToken.type as TokenType !== TokenType.R_PAREN) {
+                this.eat(TokenType.COMMA)
+            }
+        }
+
+        return params
+    }
+
+    private structDecl({ topLevel }: StatementInfo): ast.StructDecl {
+        if (!topLevel) {
+            throw new Error(`syntax error: illegal non top level struct 
+                declaration ${ this.stringifyLineCol(this.currToken) }`)
+        }
+
+        const declaratorToken = this.currToken
+        this.eat(TokenType.STRUCT)
+        const structName = this.currToken.value as string
+        this.eat(TokenType.ID)
+        const openingCurlyToken = this.currToken
+        this.eat(TokenType.L_CURLY)
+        const fields = this.structFields()
+        this.eat(TokenType.R_CURLY)
+
+        if (fields.length === 0) {
+            throw new Error( `empty structs not allowed: 
+                ${ this.stringifyLineCol(openingCurlyToken)}`)
+        }
+
+        const structDecl = new ast.StructDecl(declaratorToken, structName, fields)
+        this.eat(TokenType.SEMI)
+        return structDecl
+    }
+
+    private structFields(): ast.StructField[] {
+        const fields: ast.StructField[] = []
+        const fieldNames: Set<string> = new Set()
+        while (this.currToken.type !== TokenType.R_CURLY) {
+            const fieldToken = this.currToken
+            this.eat(TokenType.ID)
+            this.eat(TokenType.COLON)
+            const fieldType = this.typeSpecifier()
+            if (fieldNames.has(fieldToken.value as string)) {
+                throw new Error(`duplicate struct fields: 
+                    ${ this.stringifyLineCol(fieldToken) }`)
+            }
+
+            const field = new ast.StructField(fieldToken, fieldType)
+            fields.push(field)
+            fieldNames.add(field.name)
+
+            if (this.currToken.type as TokenType !== TokenType.R_CURLY) {
+                this.eat(TokenType.COMMA)
+            }
+        }
+        
+        return fields
+    }
+
+    
+
+    // type specifiers
+    private returnTypeSpecifier(): Token {
         try {
             return this.typeSpecifier()
         }
@@ -317,6 +384,9 @@ export default class Parser {
         return token
     }
 
+
+
+    // expression parsers
     private expr(): ast.AST {
         let expr = this.equality()
         while ([
@@ -492,6 +562,27 @@ export default class Parser {
         throw new Error(`unexpected token: ${ this.stringifyLineCol(token) }`)
     }
 
+    private arrayLiteral(): ast.AST {
+        const { line, col } = this.currToken
+        this.eat(TokenType.L_BRACK)
+        const elems = []
+        while (this.currToken.type !== TokenType.R_BRACK) {
+            const elem = this.expr()
+            elems.push(elem)
+
+            if (this.currToken.type as TokenType !== TokenType.R_BRACK) {
+                this.eat(TokenType.COMMA)
+            }
+        }
+        this.eat(TokenType.R_BRACK)
+
+        const arrayToken = new Token(TokenType.ARRAY_CONST, elems, line, col)
+        return new ast.Array(arrayToken)
+    }
+
+    
+
+    // expression reference parsers
     private ref(): ast.AST {
         let ref = this.currToken.type === TokenType.L_BRACK ?
             this.arrayLiteral() : this.variable()
@@ -507,12 +598,9 @@ export default class Parser {
         return this.element(ref)
     }
 
-    private functionCall(fnRef: ast.AST, statementCall=false) {
+    private functionCall(fnRef: ast.AST): ast.FunctionCall | ast.StdLibCall {
         const call = stdlib.hasOwnProperty(fnRef.token.value as string) ? 
             this.stdLibCall(fnRef.token) : new ast.FunctionCall(fnRef, this.args()) 
-        if (statementCall) {
-            this.eat(TokenType.SEMI)
-        }
         return call
     }
 
@@ -566,39 +654,18 @@ export default class Parser {
         return new ast.ArrayIdx(array, idx)
     }
 
-    private arrayLiteral(): ast.AST {
-        const { line, col } = this.currToken
-        this.eat(TokenType.L_BRACK)
-        const elems = []
-        while (this.currToken.type !== TokenType.R_BRACK) {
-            const elem = this.expr()
-            elems.push(elem)
-
-            if (this.currToken.type as TokenType !== TokenType.R_BRACK) {
-                this.eat(TokenType.COMMA)
-            }
-        }
-        this.eat(TokenType.R_BRACK)
-
-        const arrayToken = new Token(TokenType.ARRAY_CONST, elems, line, col)
-        return new ast.Array(arrayToken)
-    }
-
     private variable(): ast.AST {
         const idToken = this.currToken
         this.eat(TokenType.ID)
         return new ast.Var(idToken)
     }
 
-    private eat(tokenType: TokenType): void {
-        //console.log(tokenType, this.currToken)
-        if (this.currToken.type === tokenType) {
-            this.currToken = this.nextToken()
-            return
-        }
+    
 
-        throw new Error(
-            `invalid syntax: ${ this.stringifyLineCol(this.currToken) }`)
+    // utils
+    private stringifyLineCol(token: Token): string {
+        const { line, col } = token
+        return `line: ${ line } col: ${ col }`
     }
 
     private nextToken(): Token {
