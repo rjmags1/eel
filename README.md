@@ -3,7 +3,7 @@ Interpreted language written in Typescript. Tokenizer -> recursive-descent-parse
 
 
 ## Replit VM
-Visit https://replit.com/@maganinirj/eel?v=1 to experiment with eel in a replit VM. Click the link and enter `npm run exec examples/quicksort.eel` in the shell to get started. The examples folder contains the aforementioned test file, quicksort and fibonacci implementations, as well as a bingo game simulator, all written in eel. Write your own eel scripts in replit's in-browser IDE once you get a feel for the syntax.
+Visit https://replit.com/@maganinirj/eel to experiment with eel in a replit VM. Click the link and enter `npm run exec examples/quicksort.eel` in the shell to get started. The examples folder contains the aforementioned test file, quicksort and fibonacci implementations, as well as a bingo game simulator, all written in eel. Write your own eel scripts in replit's in-browser IDE once you get a feel for the syntax.
 
 
 ## Run it locally
